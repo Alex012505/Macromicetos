@@ -1,6 +1,6 @@
 # Macromicetos · Registro académico · Opción 2
 
-Interfaz de investigación de macromicetos de la Orinoquía colombiana. React, TypeScript, Vite, Leaflet y Lucide. Diseño adaptado del wireframe entregado, con verde bosque `#123F36`, blanco `#FFFFFF`, ámbar `#B77922` y morado suave `#76558F` como acento secundario.
+Interfaz de investigación de macromicetos de la Orinoquía colombiana. React, TypeScript, Vite, Leaflet y Lucide. Diseño adaptado del wireframe entregado, con una paleta basada en [Programa Orquídeas](https://programaorquideas.minciencias.gov.co/): morado `#34207D`, verde menta `#81F3A6`, blanco `#FFFFFF` y gris. Se utilizan variantes oscuras para textos y tonos claros para superficies; el ámbar y el rojo se reservan para estados de revisión y errores.
 
 ## Ejecución
 

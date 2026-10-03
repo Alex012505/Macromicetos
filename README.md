@@ -16,7 +16,7 @@ El repositorio contiene el frontend funcional y la documentación de integració
 - Galería y carga de fotografías asociadas a observaciones.
 - Curaduría para verificar registros o solicitar ajustes con comentarios.
 - Administración de usuarios y perfiles en demostración; operaciones REST configurables.
-- Diseño adaptable a escritorio y móvil, con verde bosque, blanco y ámbar, con acentos morados sutiles.
+- Diseño adaptable a escritorio y móvil, con una paleta basada en [Programa Orquídeas](https://programaorquideas.minciencias.gov.co/): morado, verde menta, blanco y gris.
 
 ## Perfiles y alcance
 
