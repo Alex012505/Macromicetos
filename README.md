@@ -128,7 +128,7 @@ Las referencias originales sirven para documentar el contrato; no constituyen un
 
 ## Validación y documentación
 
-La entrega pasó la comprobación TypeScript, la compilación de producción y **18 pruebas**: 14 del transporte HTTP y 4 de permisos. Se recorrieron las interfaces en navegador, incluidos escritorio, móvil, formularios y acceso por perfil. La conexión con una base de datos real permanece pendiente.
+La entrega pasó la comprobación TypeScript, la compilación de producción y **22 pruebas**: 14 del transporte HTTP, 4 de permisos y 4 de rutas de recursos para Pages. Se recorrieron las interfaces en navegador, incluidos escritorio, móvil, formularios y acceso por perfil. La conexión con una base de datos real permanece pendiente.
 
 - [Guía técnica del frontend](frontend/README.md).
 - [Perfiles, vistas y reglas de propiedad](frontend/docs/PERFILES_Y_VISTAS.md).
@@ -146,3 +146,7 @@ Trabaja en una rama para cada cambio y ejecuta `npm test` y `npm run build` ante
 Las fotografías locales cuentan con sus [créditos y licencias de origen](frontend/public/images/CREDITOS.md). El mapa utiliza OpenStreetMap con atribución visible. La cartografía y Google Fonts requieren internet; la interfaz muestra avisos de fallos del mapa y dispone de fuentes alternativas del sistema.
 
 Este repositorio no declara una licencia para el código del proyecto. Las licencias de las fotografías y dependencias se mantienen independientes.
+
+## Publicar en GitHub Pages
+
+El workflow publica el modelo expositivo en https://alex012505.github.io/Macromicetos/. Primero selecciona GitHub Actions en Settings > Pages > Source. Después sube los cambios a main. Consulta la [guía de publicación y diagnóstico](frontend/docs/PUBLICACION_GITHUB_PAGES.md).

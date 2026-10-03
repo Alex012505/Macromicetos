@@ -1,10 +1,13 @@
 import type { Dataset, Taxon, Occurrence, Role, User } from '../types';
+import { publicAssetUrl, normalizeDemoImage } from '../lib/assets.mjs';
+
+const imageUrl = (path: string) => publicAssetUrl(path, import.meta.env.BASE_URL);
 
 // Los nombres y taxonomía son ejemplos de interfaz. Localidades, fechas, personas,
 // estados y medidas son ficticios; no constituyen observaciones científicas.
 const rows = [
-  ['Pleurotus ostreatus', 'Orellana', 'Pleurotaceae', 'Agaricales', '/images/pleurotus.jpg'],
-  ['Trametes versicolor', 'Cola de pavo', 'Polyporaceae', 'Polyporales', '/images/trametes.jpg'],
+  ['Pleurotus ostreatus', 'Orellana', 'Pleurotaceae', 'Agaricales', imageUrl('images/pleurotus.jpg')],
+  ['Trametes versicolor', 'Cola de pavo', 'Polyporaceae', 'Polyporales', imageUrl('images/trametes.jpg')],
   ['Pycnoporus sanguineus', 'Hongo rojo de la madera', 'Polyporaceae', 'Polyporales', ''],
   ['Schizophyllum commune', 'Hongo de láminas divididas', 'Schizophyllaceae', 'Agaricales', ''],
   ['Auricularia auricula-judae', 'Oreja de palo', 'Auriculariaceae', 'Auriculariales', ''],
@@ -56,7 +59,14 @@ export function loadDemo(): Dataset {
   try {
     const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_KEY) || 'null');
     if (data && Array.isArray(data.taxa) && Array.isArray(data.occurrences) && Array.isArray(data.users)) {
-      return { ...data, occurrences: data.occurrences.map((o: Occurrence) => ({ ...o, ownerId: o.ownerId || demoUsers.find(u => u.name === o.author)?.id })) };
+      return {
+        ...data,
+        taxa: data.taxa.map((t: Taxon) => ({ ...t, image: normalizeDemoImage(t.image, import.meta.env.BASE_URL) })),
+        occurrences: data.occurrences.map((o: Occurrence) => ({
+          ...o, ownerId: o.ownerId || demoUsers.find(u => u.name === o.author)?.id,
+          images: (o.images || []).map(image => normalizeDemoImage(image, import.meta.env.BASE_URL)),
+        })),
+      };
     }
   } catch { /* A blocked or corrupted browser store must not prevent the demo. */ }
   return structuredClone({ taxa: demoTaxa, occurrences: demoOccurrences, users: demoUsers });
