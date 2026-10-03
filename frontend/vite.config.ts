@@ -5,6 +5,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   return {
     plugins: [react()],
+    base: '/Macromicetos/',
     server: {
       port: 5173,
       strictPort: true,
