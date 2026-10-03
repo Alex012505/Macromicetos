@@ -1,0 +1,41 @@
+# Dependencias y compilaciones
+node_modules/
+dist/
+build/
+
+# Configuración privada; conservar la plantilla pública
+.env*
+!.env.example
+
+# Cachés y archivos generados
+.npm-cache/
+.vite/
+.cache/
+*.tsbuildinfo
+coverage/
+test-results/
+playwright-report/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Entornos Python, si se incorpora el backend
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Archivos temporales del sistema y editores
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Paquetes locales de entrega; las evidencias de docs sí se versionan
+entregables/

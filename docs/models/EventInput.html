@@ -1,0 +1,58 @@
+
+<h2>EventInput</h2>
+<ul class="parameter">
+  <li class="param-required-true">location_id : UUID
+    <br/>Llave foránea que enlaza al sitio (&#x60;ecological.location&#x60;) creado previamente
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">event_type : String
+    <br/>Tipo de evento o episodio de muestreo
+      <dl class="param-enum">
+        <dt>Enum:
+            <dd>Observation</dd>
+            <dd>Survey</dd>
+            <dd>Expedition</dd>
+            <dd>SiteVisit</dd>
+            <dd>SamplingEvent</dd>
+        </dt>
+      </dl>
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">field_number : String
+    <br/>Código de campo estándar (Convención AAAA-REG-NN)
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-true">event_date : date
+    <br/>Fecha en que se realizó el evento de muestreo (ISO 8601)
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-true">recorded_by : String
+    <br/>Persona o recolector normalizado responsable de la salida
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-true">sampling_protocol : String
+    <br/>Protocolo estandarizado de búsqueda o muestreo
+      <dl class="param-enum">
+        <dt>Enum:
+            <dd>OpportunisticSearch</dd>
+            <dd>LinearTransect</dd>
+            <dd>FixedPlot</dd>
+        </dt>
+      </dl>
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">sampling_effort : String
+    <br/>Esfuerzo de muestreo aplicado (ej. 1 observer-hour)
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">event_remarks : String
+    <br/>Observaciones generales del evento de campo
+  </li>
+</ul>

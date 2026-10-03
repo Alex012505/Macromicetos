@@ -1,0 +1,50 @@
+
+<h2>OccurrenceInput</h2>
+<ul class="parameter">
+  <li class="param-required-true">event_id : UUID
+    <br/>Llave foránea al evento de campo (&#x60;ecological.event&#x60;)
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-true">taxon_id : UUID
+    <br/>Llave foránea al diccionario autoritativo de especies (&#x60;shared.taxon_ref&#x60;)
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">external_occurrence_id : String
+    <br/>Identificador externo (ej. gbifID) para garantizar idempotencia.
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-true">basis_of_record : String
+    <br/>Tipo de registro según Darwin Core (fijo en HumanObservation)
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">substrate : String
+    <br/>Sustrato biológico o físico donde se encontró (ENUM de 52 valores).
+      <dl class="param-enum">
+        <dt>Enum:
+            <dd>Madera muerta</dd>
+            <dd>Suelo orgánico</dd>
+            <dd>Hojarasca</dd>
+            <dd>Estiércol</dd>
+        </dt>
+      </dl>
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">identified_by : String
+    <br/>Persona que determinó taxonómicamente el espécimen.
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">date_identified : date
+    <br/>Fecha de la determinación taxonómica.
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">occurrence_remarks : String
+    <br/>Notas libres sobre el organismo observado.
+  </li>
+</ul>

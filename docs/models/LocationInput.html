@@ -1,0 +1,60 @@
+
+<h2>LocationInput</h2>
+<ul class="parameter">
+  <li class="param-required-true">country : String
+    <br/>País de la observación (fijo en Colombia)
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-true">state_province : String
+    <br/>Departamento o división territorial
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-true">municipality : String
+    <br/>Municipio de la recolección
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-true">locality : String
+    <br/>Descripción textual específica del sitio
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-true">decimal_latitude : Double
+    <br/>Latitud en grados decimales (WGS84)
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-true">decimal_longitude : Double
+    <br/>Longitud en grados decimales (WGS84)
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">elevation_m : Float
+    <br/>Altitud en metros sobre el nivel del mar
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">coordinate_uncertainty_m : Float
+    <br/>Radio de incertidumbre del GPS en metros
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-true">habitat : String
+    <br/>Vocabulario controlado de hábitats de la Orinoquía
+      <dl class="param-enum">
+        <dt>Enum:
+            <dd>Bosque de galería</dd>
+            <dd>Sabana abierta</dd>
+            <dd>Riberas de río</dd>
+            <dd>Bosque secundario</dd>
+        </dt>
+      </dl>
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">location_remarks : String
+    <br/>Notas adicionales sobre el sitio de muestreo
+  </li>
+</ul>

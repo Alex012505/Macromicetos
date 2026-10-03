@@ -1,0 +1,36 @@
+
+<h2>MeasurementOrFactInput</h2>
+<ul class="parameter">
+  <li class="param-required-false">event_id : UUID
+    <br/>Vínculo opcional al evento de campo (ej. variables climáticas globales).
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">occurrence_id : UUID
+    <br/>Vínculo opcional a una ocurrencia específica (ej. medidas morfológicas).
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-true">measurement_type : String
+    <br/>Tipo de medida o variable capturada (según catálogo o ENUM).
+      <dl class="param-enum">
+        <dt>Enum:
+            <dd>temperatura</dd>
+            <dd>humedad</dd>
+            <dd>presion</dd>
+            <dd>diametro_sombrero</dd>
+            <dd>color_sombrero</dd>
+        </dt>
+      </dl>
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-true">measurement_value : String
+    <br/>Valor registrado (admite números, rangos o descripciones de texto).
+  </li>
+</ul>
+<ul class="parameter">
+  <li class="param-required-false">measurement_unit : String
+    <br/>Unidad de medida correspondiente (ej. °C, %, cm)
+  </li>
+</ul>
