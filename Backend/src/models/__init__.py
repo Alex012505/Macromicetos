@@ -1,4 +1,4 @@
 # src/models/__init__.py
 from .UserWeb import UserWeb
-
-__all__ = ["UserWeb"]
+from .TaxonRef import TaxonRef
+__all__ = ["UserWeb","TaxonRef"]

@@ -1,17 +1,21 @@
 """Endpoints de autenticación: registro, login y cambio de contraseña."""
 import uuid
 
+from fastapi.security import OAuth2PasswordRequestForm
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from Security import hash_password,verify_password
+from Security import hash_password,verify_password,get_current_user
 from database.Base import get_db,engine
 from models.UserWeb import  UserWeb
 from schemas.user_schema import (ChangePasswordInput, MessageResponse,
-                     UserLoginInput, UserRegisterInput)
+                     UserLoginInput, UserRegisterInput,TokenResponse)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
 
 
 @router.post("/register", response_model=MessageResponse, status_code=status.HTTP_201_CREATED)
@@ -44,13 +48,35 @@ def register(body: UserRegisterInput, db: Session = Depends(get_db)):# acá si e
     return MessageResponse(message="Cuenta creada correctamente")
 
 
+@router.post("/login", response_model=TokenResponse, status_code=status.HTTP_200_OK)
+def login(
+    form: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
+):
+    """Login estándar OAuth2 (form-data). Swagger lo usa con el botón Authorize."""
+    usuario = db.scalar(
+        select(UserWeb).where(func.lower(UserWeb.email) == form.username.lower())
+    )
+    if not usuario or not verify_password(form.password, usuario.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Correo o contraseña incorrectos",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    access_token = create_access_token(
+        data={"sub": str(usuario.user_web_id), "role": usuario.role}
+    )
+    return {"access_token": access_token, "token_type": "Bearer"}
+
+
 # Asegúrate de importar verify_password y create_access_token desde tu módulo Security
 from Security import hash_password, verify_password, create_access_token
 # Asegúrate de incluir TokenResponse en la importación de schemas.user_schema
 from schemas.user_schema import (ChangePasswordInput, MessageResponse,
                      UserLoginInput, UserRegisterInput, TokenResponse)
 
-@router.post("/login", response_model=TokenResponse, status_code=status.HTTP_200_OK)
+@router.post("/login-json", response_model=TokenResponse, status_code=status.HTTP_200_OK)
 def login(body: UserLoginInput, db: Session = Depends(get_db)):
     """Verifica las credenciales y devuelve un token JWT (Access Token)."""
     
@@ -76,3 +102,26 @@ def login(body: UserLoginInput, db: Session = Depends(get_db)):
     # 4. Retornar la respuesta estructurada
     return {"access_token": access_token, "token_type": "Bearer"}
 
+@router.post("/change-password", response_model=MessageResponse, status_code=status.HTTP_200_OK)
+def change_password(
+    body: ChangePasswordInput,
+    db: Session = Depends(get_db),
+    current_user: UserWeb = Depends(get_current_user)
+):
+    """Permite a un usuario autenticado cambiar su contraseña actual por una nueva."""
+    
+    # 1. Verificar que la contraseña actual sea correcta
+    if not verify_password(body.old_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="La contraseña actual es incorrecta"
+        )
+        
+    # 2. Cifrar la nueva contraseña con argon2
+    current_user.password_hash = hash_password(body.new_password)
+    
+    # 3. Guardar cambios en la base de datos
+    db.commit()
+    db.refresh(current_user)
+    
+    return {"message": "Contraseña actualizada correctamente"}
