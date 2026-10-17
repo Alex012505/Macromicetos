@@ -118,7 +118,44 @@ tr:last-child td { border-bottom: 0; }
 .species-cell > .photo { width: 41px; height: 41px; border-radius: 9px; flex-shrink: 0; }
 .species-cell strong { font-size: .76rem; font-weight: 600; display: block; white-space: nowrap; }
 .species-cell small { font-size: .63rem; color: #656575; margin-top: 5px; display: block; }
-.scientific-name { font-style: italic; }
+.scientific-name { font-style: italic; font-synthesis: style; }
+em { font-synthesis: style; }
+.scientific-name input, input.scientific-name, select.scientific-name { font-style: italic; }
+.form-section { border: 0; padding: 0; margin: 0; min-width: 0; }
+.form-section[hidden] { display: none; }
+.entry-card { border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin: 16px 0; min-width: 0; background: #fcfbfe; }
+.entry-card legend { font-weight: 650; font-size: .85rem; padding: 0 6px; }
+.editor-section { border-top: 1px solid var(--line); margin-top: 28px; padding-top: 22px; }
+.form-subheading { margin-top: 30px; }
+.extended-stepper { gap: 12px; display: grid; grid-template-columns: repeat(4, 1fr); }
+.extended-stepper i { flex-shrink: 0; }
+.segmented-control { display: flex; gap: 6px; flex-wrap: wrap; padding: 5px; background: #f1edf9; border-radius: 10px; margin-bottom: 18px; }
+.segmented-control button { border: 0; border-radius: 7px; background: none; padding: 11px 13px; flex: 1; color: #4b4f58; font-size: .8rem; }
+.segmented-control button.active { color: #34207d; background: white; box-shadow: 0 1px 6px #34207d18; font-weight: 700; }
+.location-prompt { display: flex; gap: 16px; background: #e8fbef; border-radius: 12px; padding: 22px; margin-bottom: 20px; }
+.location-prompt > svg { flex-shrink: 0; color: #267444; }
+.location-prompt p { margin: 8px 0 15px; }
+.location-map { height: 320px; width: 100%; border-radius: 10px; margin-bottom: 20px; z-index: 0; }
+.existing-photos { display: flex; gap: 10px; flex-wrap: wrap; margin: 15px 0; }
+.existing-photos .photo { width: 100px; height: 85px; border-radius: 7px; }
+.photo-preview { width: 100%; max-height: 200px; object-fit: contain; background: #f1edf9; border-radius: 8px; margin-bottom: 18px; }
+.record-summary { background: #e8fbef; border-radius: 10px; padding: 18px; margin-top: 25px; }
+.record-summary p { margin: 9px 0 0; }
+.danger { color: #99534d; }
+.profile-actions { padding: 0 32px 24px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.profile-actions .heading-actions { flex-direction: row; flex-wrap: wrap; }
+.photo-upload-links { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 22px; }
+.record-details { border: 1px solid var(--line); border-radius: 10px; margin: 15px 0; padding: 18px; }
+.record-details summary { cursor: pointer; font-weight: 650; font-size: .9rem; line-height: 1.6; }
+.record-details[open] summary { margin-bottom: 22px; }
+.detail-gallery figure { margin: 0; min-width: 0; }
+figcaption { font-size: .75rem; color: var(--muted); line-height: 1.7; padding-top: 9px; overflow-wrap: anywhere; }
+.export-controls { max-width: 100%; }
+.credit-line { display: block; }
+.photo-credit-editor { margin-bottom: 18px; }
+.photo-credit-editor summary { cursor: pointer; font-size: .85rem; margin-bottom: 12px; }
+.export-controls .heading-actions { flex-wrap: wrap; }
+@media (max-width: 540px) { .extended-stepper { grid-template-columns: repeat(2, 1fr); }.profile-actions { padding: 0 23px 20px; }.location-prompt { padding: 16px; gap: 10px; }.location-map { height: 260px; }.entry-card { padding: 14px; }.segmented-control button { padding: 10px 7px; font-size: .75rem; } }
 .location-cell { display: flex; align-items: center; gap: 5px; color: #656575; white-space: nowrap; font-size: .68rem; }
 .location-cell svg { color: #8a7fa0; }
 .date-cell { white-space: nowrap; font-size: .64rem; color: #656575; }
@@ -345,3 +382,6 @@ th { font-size: .75rem; color: #656575; }
   .photo-tag { font-size: .625rem; }
   .full-map .map-container, .full-map .leaflet-map { height: 380px; min-height: 380px; }
 }
+.form-stepper.extended-stepper { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.form-stepper.extended-stepper > span { min-width: 0; }
+@media (max-width: 540px) { .form-stepper.extended-stepper { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

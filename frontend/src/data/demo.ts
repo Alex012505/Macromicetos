@@ -1,5 +1,7 @@
 import type { Dataset, Taxon, Occurrence, Role, User } from '../types';
 import { publicAssetUrl, normalizeDemoImage } from '../lib/assets.mjs';
+import { migrateOccurrence } from '../lib/demo-migration.mjs';
+import { readDemoDataset, writeDemoDataset, clearDemoDataset } from '../lib/demo-store.mjs';
 
 const imageUrl = (path: string) => publicAssetUrl(path, import.meta.env.BASE_URL);
 
@@ -55,27 +57,27 @@ export function demoUserForRole(role: Role): User {
   const sample = demoUsers.find(u => u.role === role)!;
   return { ...sample, role };
 }
-export function loadDemo(): Dataset {
+export async function loadDemo(): Promise<Dataset> {
+  const stored = await readDemoDataset();
   try {
-    const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_KEY) || 'null');
+    const data = stored || JSON.parse(localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_KEY) || 'null');
     if (data && Array.isArray(data.taxa) && Array.isArray(data.occurrences) && Array.isArray(data.users)) {
       return {
         ...data,
         taxa: data.taxa.map((t: Taxon) => ({ ...t, image: normalizeDemoImage(t.image, import.meta.env.BASE_URL) })),
         occurrences: data.occurrences.map((o: Occurrence) => ({
-          ...o, ownerId: o.ownerId || demoUsers.find(u => u.name === o.author)?.id,
-          images: (o.images || []).map(image => normalizeDemoImage(image, import.meta.env.BASE_URL)),
+          ...migrateOccurrence(o, import.meta.env.BASE_URL), ownerId: o.ownerId || demoUsers.find(u => u.name === o.author)?.id,
         })),
       };
     }
   } catch { /* A blocked or corrupted browser store must not prevent the demo. */ }
-  return structuredClone({ taxa: demoTaxa, occurrences: demoOccurrences, users: demoUsers });
+  return structuredClone({ taxa: demoTaxa, occurrences: demoOccurrences.map(o => migrateOccurrence(o, import.meta.env.BASE_URL)), users: demoUsers });
 }
-export function saveDemo(dataset: Dataset) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(dataset)); }
-  catch { throw new Error('No fue posible guardar en el navegador. El almacenamiento está bloqueado o lleno; prueba con una imagen más pequeña.'); }
+export async function saveDemo(dataset: Dataset) {
+  await writeDemoDataset(dataset);
 }
-export function resetDemo() {
+export async function resetDemo() {
+  await clearDemoDataset();
   try { localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(LEGACY_KEY); }
   catch { throw new Error('El navegador no permitió restablecer la demostración.'); }
 }

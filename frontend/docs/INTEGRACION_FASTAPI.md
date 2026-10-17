@@ -2,7 +2,7 @@
 
 Estado: cliente preparado; backend no disponible para pruebas de extremo a extremo. Las rutas se derivan de los HTML originales en `docs/operations/DefaultApi.html` y `docs/models/`. Los documentos de arquitectura se usan como contexto, pero las rutas concretas de esta entrega corresponden al contrato de Macromicetos; no se mezclan con los servicios de salas y streaming de otros diagramas.
 
-## 1. Rutas documentadas utilizadas
+## 1. Referencia original de rutas
 
 | Método | Ruta relativa a la URL base | Interfaz | Observación |
 | --- | --- | --- | --- |
@@ -10,10 +10,10 @@ Estado: cliente preparado; backend no disponible para pruebas de extremo a extre
 | POST | `/auth/register` | Registro de cuenta | `{email,password,first_name,last_name}`. El servidor fija el rol público. |
 | GET | `/taxa?search=...` | Catálogo | Lista directa o envoltura `data`, `items` o `results`. |
 | GET | `/taxa/{taxon_id}` | Ficha | Contrato TaxonRef. |
-| POST | `/taxa` | Crear ficha taxonómica | Campos de TaxonRef. ID asignado por el servidor. |
+| POST | `/taxa` | Referencia histórica de creación básica | El editor ampliado utiliza el contrato configurable de ficha completa descrito abajo. |
 | GET | `/occurrences/{occurrence_id}` | Consulta de registro por ID | Perfil con taxón, evento, ubicación y multimedia. |
-| POST | `/occurrences/{occurrence_id}` | Crear/editar observación según contrato | Requiere ID en la ruta, `event_id` y `taxon_id` UUID. Confirmar semántica de edición con backend. |
-| POST | `/multimedia/upload` | Carga de fotografía | multipart: `file`, `occurrence_id`, `photo_type`. |
+| POST | `/occurrences/{occurrence_id}` | Referencia histórica de observación básica | El nuevo editor no la usa para evitar descartar ubicación, morfología y demás campos. |
+| POST | `/multimedia/upload` | Referencia histórica de carga simple | El cliente la conserva; la interfaz ampliada usa el contrato configurable de lote para conservar créditos y permitir reintentos. |
 
 El servidor virtual SwaggerHub que aparece en los HTML es documentación y no se usa como backend real. No se enviaron datos ni credenciales a ese servidor.
 
@@ -48,7 +48,7 @@ Respuesta propuesta de `/auth/login`:
 }
 ```
 
-El cliente también acepta `accessToken`, `refreshToken` y `userProfile`. Roles canónicos: `readonly_user`, `researcher`, `curator`, `admin`. Si el servidor solo devuelve un mensaje, se muestra un error de contrato y no se inicia una sesión ficticia. Si entrega token sin perfil, el cliente conserva el mínimo privilegio; opcionalmente se puede configurar `VITE_ME_PATH` para consultar el perfil.
+El cliente también acepta `accessToken`, `refreshToken` y `userProfile`. Roles de interfaz: `readonly_user`, `researcher`, `curator`, `admin`. Se admiten los roles del ORM: `viewer` y `analyst` se presentan como visitante, y `field_collector` como investigador. Se utiliza `party.display_name` y `user_web_id` cuando están disponibles. La actualización envía `viewer`, `field_collector`, `curator` o `admin` conforme al ENUM del ORM. Si el servidor solo devuelve un mensaje, se muestra un error de contrato y no se inicia una sesión ficticia. Si entrega token sin perfil, el cliente conserva el mínimo privilegio; opcionalmente se puede configurar `VITE_ME_PATH` para consultar el perfil.
 
 Los tokens están en memoria. Recargar requiere iniciar sesión otra vez. No existe revocación remota de logout porque el contrato no define esa ruta; cerrar sesión borra los tokens del cliente. Para revocación global el backend debe añadir una operación y acordar el contrato.
 
@@ -112,9 +112,9 @@ TaxonRef usa `taxonID`, `scientificName`, `commonName_es`, `kingdom`, `phylum`, 
 
 ## 5. Eventos y geografía
 
-`OccurrenceInput` requiere un evento existente. Los HTML actuales no declaran POST de evento ni ubicación. Por ello, en modo API el formulario solicita un UUID de evento real y un identificador de ocurrencia; no inventa eventos ni envía campos geográficos ignorados por el contrato. El backend determina el estado inicial.
+`OccurrenceInput` de la referencia original requiere un evento existente y no cubre el registro ampliado. La interfaz de campo ahora recoge ubicación, evento, ocurrencia, participantes, rasgos, medidas y fotos. En modo API solo guarda mediante `VITE_RECORD_BUNDLE_PATH`; si falta, muestra un error y conserva el formulario. Los UUID del borrador y de las fotos son estables durante los reintentos. El backend determina identidad, permisos y estado inicial.
 
-Para habilitar el formulario completo de campo con coordenadas reales, acordar una operación transaccional que cree ubicación, evento y ocurrencia, o definir endpoints y devolución de sus IDs. El formulario geográfico completo funciona actualmente en el demo, con persistencia local.
+Las tres operaciones propuestas, sus cuerpos, respuestas y semántica transaccional se describen en [REGISTRO_COMPLETO.md](REGISTRO_COMPLETO.md). El formulario completo funciona en demostración con IndexedDB. La obtención de coordenadas depende del permiso del navegador y de HTTPS/localhost; mapa y coordenadas manuales permanecen como alternativas.
 
 ## 6. CORS y errores
 

@@ -12,8 +12,10 @@ El repositorio contiene el frontend funcional y la documentación de integració
 - Catálogo con búsqueda, filtros por familia, ordenación y vistas de tarjetas o lista.
 - Fichas de especies con taxonomía, morfología, ecología, geografía y multimedia.
 - Mapa interactivo con filtros por departamento, familia, fechas y estado de revisión.
-- Creación y edición de observaciones mediante formularios por pasos y exportación CSV.
-- Galería y carga de fotografías asociadas a observaciones.
+- Creación y edición de observaciones mediante formularios de cuatro pasos con fotos iniciales, ubicación del dispositivo, coordenadas y selección en mapa.
+- Galería y carga de varias fotografías por hallazgo, con créditos y licencias.
+- Exportación del catálogo y los registros filtrados a CSV o Excel sin imágenes; fichas PDF por especie con fotografías.
+- Taxonomía ampliada, 18 rasgos morfológicos generales o por espécimen, medidas ambientales, participantes, bibliografía y entrevistas socioecológicas.
 - Curaduría para verificar registros o solicitar ajustes con comentarios.
 - Administración de usuarios y perfiles en demostración; operaciones REST configurables.
 - Diseño adaptable a escritorio y móvil, con una paleta basada en [Programa Orquídeas](https://programaorquideas.minciencias.gov.co/): morado, verde menta, blanco y gris.
@@ -72,7 +74,7 @@ Todos se ejecutan desde `frontend/`:
 
 Sin configuración adicional, la aplicación utiliza datos ilustrativos. Inicia como una administradora de demostración y permite cambiar entre los cuatro perfiles desde el encabezado, sin credenciales reales.
 
-Las personas, observaciones, coordenadas, fechas, medidas y estados son ficticios. Las fotografías son referencias de especies y no prueban su presencia en la región. Los cambios se guardan en `localStorage` de ese navegador; no existe sincronización entre usuarios. El almacenamiento tiene capacidad limitada y la carga de imágenes en demo admite hasta 2 MB.
+Las personas, observaciones, coordenadas, fechas, medidas y estados son ficticios. Las fotografías son referencias de especies y no prueban su presencia en la región. Los cambios se guardan en IndexedDB de ese navegador; no existe sincronización entre usuarios. La carga en demo admite hasta 2 MB por fotografía y hasta 10 fotos por operación. El guardado espera la confirmación de la transacción; si el navegador bloquea el almacenamiento o agota su cuota, el formulario conserva los datos. Los datos antiguos de `localStorage` se leen y pasan a IndexedDB al guardar.
 
 Esta versión es un modelo expositivo de las vistas finales. La configuración técnica de integración se conserva en archivos y documentación, sin un módulo de conexión dentro de la interfaz.
 
@@ -128,7 +130,7 @@ Las referencias originales sirven para documentar el contrato; no constituyen un
 
 ## Validación y documentación
 
-La entrega pasó la comprobación TypeScript, la compilación de producción y **22 pruebas**: 14 del transporte HTTP, 4 de permisos y 4 de rutas de recursos para Pages. Se recorrieron las interfaces en navegador, incluidos escritorio, móvil, formularios y acceso por perfil. La conexión con una base de datos real permanece pendiente.
+La entrega pasó la comprobación TypeScript, la compilación de producción y **38 pruebas** de transporte, permisos, recursos para Pages, coordenadas y geolocalización simulada, morfología, adaptación al ORM, migración y exportaciones. Se recorrieron las interfaces en navegador, incluidos escritorio, móvil, formularios y acceso por perfil. Se verificaron también descargas reales CSV/XLSX/PDF y la conservación de varias fotos tras recargar. La conexión con una base de datos real permanece pendiente; los contratos nuevos están detallados en la [guía del registro completo](frontend/docs/REGISTRO_COMPLETO.md).
 
 - [Guía técnica del frontend](frontend/README.md).
 - [Perfiles, vistas y reglas de propiedad](frontend/docs/PERFILES_Y_VISTAS.md).

@@ -1,3 +1,64 @@
+# Verificación del registro ampliado
+
+Fecha: 17 de octubre de 2026. Windows, Node 20.18.0 y npm 10.8.2. Se conserva a continuación el informe histórico de la entrega anterior.
+
+## Resultados actuales
+
+- `npm test`: **38 pruebas correctas**, incluidas adaptación al ORM, roles, morfología controlada, coordenadas, geolocalización simulada, exportación y migración.
+- `npm run build`: TypeScript y compilación de producción correctos. Vite informa de paquetes de más de 500 kB; Excel y PDF se cargan bajo demanda. Es una advertencia de tamaño, no un fallo de compilación.
+- Dependencias: la instalación final informa **0 vulnerabilidades**. Se actualizó `uuid` indirecto de ExcelJS mediante un override compatible con CommonJS.
+- `git diff --check`: sin errores de espacios.
+
+## Flujos recorridos en navegador
+
+| Comprobación | Resultado |
+| --- | --- |
+| Registro con foto inicial | Guardado y consulta correctos. |
+| Mapa de ubicación | Pulsar un punto actualiza latitud y longitud. |
+| Coordenadas incompletas | Error visible; bloquea el avance. |
+| Latitud cero | Se conserva como número válido, junto a longitud negativa. |
+| Diámetro sin unidad | Solicita cm o mm. |
+| Datos entre pasos | Se conservan fotos, campos y medidas al avanzar y retroceder. |
+| Fotos posteriores | Se añadió una segunda foto al mismo hallazgo; ambas permanecen después de recargar. |
+| Edición de hallazgo | Conserva dos fotografías, morfología y medidas ambientales. |
+| Hallazgo sin identificar, sin coordenadas | Se guarda y abre su propio detalle, con posibilidad de completar la identificación después. |
+| Ficha taxonómica ampliada | Guarda rasgos generales, responsable, bibliografía, entrevista y uso reportado. |
+| Entrevista sin consentimiento | Bloquea el guardado con mensaje. |
+| Visitante | No ve edición ni pestaña socioecológica. |
+| Investigador por URL directa de curaduría | Acceso denegado. |
+| Curaduría | Bloquea solicitud de ajustes sin comentario; guarda una solicitud con comentario. |
+| Formulario móvil, viewport 390 × 844 | Página y diálogo sin desbordamiento horizontal; pasos en dos columnas. |
+| Ficha móvil | Sin desbordamiento global; pestañas desplazables. |
+| Cursiva | Verificada en el estilo calculado del nombre científico, en el archivo XLSX y en las fuentes del PDF. |
+| Fuente sin variante cursiva | Se habilitó la síntesis de estilo exclusivamente para nombres científicos y énfasis; verificada visualmente. |
+| Cambio rápido de mapas | Se probó ampliar y cerrar el mapa y abandonar el selector de ubicación: sin nuevos errores de consola tras detener las animaciones antes del desmontaje. |
+
+La prueba de varias fotos reveló el límite de `localStorage` y la descarga PDF rechazaba las imágenes cargadas localmente. Se corrigieron con persistencia en IndexedDB y soporte explícito para URLs de datos de imágenes rasterizadas, y se repitieron ambas pruebas con archivos reales.
+
+## Descargas verificadas
+
+Se descargaron archivos desde los botones de la aplicación y se inspeccionó su contenido:
+
+- CSV del catálogo: una especie cuando se descarga desde su ficha; sin datos de imagen.
+- CSV de hallazgos filtrados: una sola fila coincidente; conserva coordenadas `0, -73.64`, morfología y medidas.
+- XLSX: abre como un paquete Excel válido con tres hojas, coordenadas numéricas, filtros y cursiva. No contiene `xl/media`, imágenes ni fórmulas generadas desde texto.
+- PDF: cuatro páginas con datos, fotografías cargadas y de referencia, créditos y nombres científicos en cursiva. Se renderizaron y revisaron las páginas; sin superposición ni recortes. Los objetos de imagen repetidos se reutilizan.
+- Se añadieron marcadores ficticios a una entrevista y un correo de participante y se comprobó que **no aparecen en CSV, XLSX ni PDF**.
+
+Evidencias actuales:
+
+- `evidencias/2026-10-17/formulario-movil.png`.
+- `evidencias/2026-10-17/ficha-movil.png`.
+- `evidencias/2026-10-17/ficha-escritorio.png`.
+
+## Límites de la comprobación
+
+Los recorridos de navegador son pruebas manuales asistidas, no una suite E2E automática. Los datos utilizados son ficticios y se guardaron en la demostración local. Las pruebas de geolocalización usan respuestas simuladas para posición, precisión, altitud, permiso denegado, indisponibilidad y timeout; no se capturó la ubicación física de la persona.
+
+No hay backend implementado en este repositorio. No se verificaron autenticación, guardado ni permisos contra PostgreSQL/FastAPI reales. Los contratos ampliados y la cobertura del modelo están en [REGISTRO_COMPLETO.md](REGISTRO_COMPLETO.md). La autorización y la redacción de datos sensibles deben aplicarse en el servidor.
+
+---
+
 # Validación de la entrega
 
 Fecha: 3 de octubre de 2026. Entorno: Windows, Node 20.18.0, npm 10.8.2. Backend FastAPI no disponible.

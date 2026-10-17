@@ -15,7 +15,7 @@ export default function OccurrenceMap({ records, taxa, onSelect, compact = false
   const [tileError, setTileError] = useState(false);
   useEffect(() => {
     if (!container.current) return;
-    const instance = L.map(container.current, { scrollWheelZoom: !compact, zoomControl: !compact }).setView([5.15, -71.5], compact ? 5 : 6);
+    const instance = L.map(container.current, { scrollWheelZoom: !compact, zoomControl: !compact, zoomAnimation: false, fadeAnimation: false }).setView([5.15, -71.5], compact ? 5 : 6);
     const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', maxZoom: 18,
     }).addTo(instance);
@@ -24,7 +24,7 @@ export default function OccurrenceMap({ records, taxa, onSelect, compact = false
     map.current = instance;
     const observer = new ResizeObserver(() => instance.invalidateSize());
     observer.observe(container.current);
-    return () => { observer.disconnect(); instance.remove(); map.current = null; markers.current = null; };
+    return () => { observer.disconnect(); instance.stop(); instance.remove(); map.current = null; markers.current = null; };
   }, [compact]);
   useEffect(() => {
     if (!map.current || !markers.current) return;
@@ -35,7 +35,7 @@ export default function OccurrenceMap({ records, taxa, onSelect, compact = false
       const taxon = taxa.find(t => t.id === o.taxonId);
       const color = o.status === 'verified' ? '#226b53' : o.status === 'pending' ? '#bd7c24' : '#8d6b6a';
       const node = document.createElement('div');
-      const title = document.createElement('strong'); title.textContent = taxon?.scientificName || 'Ocurrencia';
+      const title = document.createElement('em'); title.className = 'scientific-name'; title.textContent = taxon?.scientificName || 'Sin identificar';
       const place = document.createElement('p'); place.textContent = o.locality;
       const button = document.createElement('button'); button.className = 'map-popup-button'; button.textContent = 'Ver ficha';
       button.addEventListener('click', () => callback.current(o)); node.append(title, place, button);
@@ -43,7 +43,7 @@ export default function OccurrenceMap({ records, taxa, onSelect, compact = false
         .bindPopup(node).addTo(markers.current!);
       coords.push([o.lat, o.lng]);
     });
-    if (coords.length) map.current.fitBounds(L.latLngBounds(coords), { padding: compact ? [25, 25] : [50, 50], maxZoom: compact ? 6 : 11 });
+    if (coords.length) map.current.fitBounds(L.latLngBounds(coords), { padding: compact ? [25, 25] : [50, 50], maxZoom: compact ? 6 : 11, animate: false });
   }, [records, taxa, compact]);
   return <div className={`map-container ${compact ? 'compact' : ''}`}>
     <div className="leaflet-map" ref={container} aria-label="Mapa interactivo de ocurrencias de macromicetos" />

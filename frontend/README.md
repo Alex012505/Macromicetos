@@ -25,11 +25,13 @@ npm run preview
 
 - Vista general: métricas derivadas de los datos disponibles, últimas observaciones, mapa y accesos.
 - Catálogo: búsqueda, filtro por familia, ordenación, tarjetas/lista y paginación.
-- Ficha: taxonomía, morfología, ecología, geografía y multimedia; rutas compartibles por hash.
+- Ficha: taxonomía, morfología general y por hallazgo, ecología, geografía, multimedia, bibliografía y socioecología según permisos; rutas compartibles por hash.
 - Mapa: Leaflet + OpenStreetMap, filtros por departamento, familia, fechas y verificación.
-- Registros: formulario por pasos, creación/edición de ocurrencias, exportación CSV y consulta por ID en modo API.
+- Registros: formulario de cuatro pasos con fotografías y ubicación por dispositivo/mapa/coordenadas, creación/edición de ocurrencias, exportación CSV y Excel y consulta por ID en modo API.
 - Curaduría: revisión, verificación y solicitud de ajustes con comentario obligatorio.
-- Multimedia: galería, ampliación y formulario de carga vinculado a una ocurrencia.
+- Multimedia: galería, ampliación y carga inicial o posterior de varias fotos con tipo, licencia, titular y personas acreditadas.
+- Fichas PDF por especie: taxonomía, rasgos, contexto de los hallazgos, bibliografía y fotografías con créditos.
+- Ficha editable: taxonomía completa, morfología, responsables, fuentes y entrevistas con consentimiento y usos reportados.
 - Usuarios: listado y edición de perfiles en demo; lectura y actualización configurables para el backend.
 - Autenticación: login/registro reales preparados; entrada por rol para demostración sin credenciales.
 - Guía: uso de la plataforma, alcance de perfiles, procedencia de datos y créditos. La configuración de FastAPI se gestiona mediante archivos de entorno; no forma parte de las vistas expositivas.
@@ -38,7 +40,7 @@ npm run preview
 
 Sin `.env`, la aplicación usa demostración local. Empieza con Camila Torres, una administradora de demostración para que se puedan revisar todas las pantallas. El selector de roles existe únicamente en este modo. También puedes cerrar sesión y entrar al demo como visitante, investigador o curador.
 
-Las observaciones, coordenadas, personas, fechas, medidas y estados son ficticios. Las fotografías descargadas son referencias de especies; no evidencian ocurrencias en la región. Los cambios se guardan en `localStorage`, únicamente en este navegador. El almacenamiento es limitado: el demo acepta imágenes de hasta 2 MB y muestra errores si no puede guardarlas. El modo API nunca carga los ejemplos como sustituto ante errores.
+Las observaciones, coordenadas, personas, fechas, medidas y estados son ficticios. Las fotografías descargadas son referencias de especies; no evidencian ocurrencias en la región. Los cambios se guardan en IndexedDB, únicamente en este navegador. Los datos antiguos de `localStorage` se migran al guardar. El almacenamiento es limitado: el demo acepta imágenes de hasta 2 MB y muestra errores si no puede guardarlas. El modo API nunca carga los ejemplos como sustituto ante errores.
 
 Para usar FastAPI:
 
@@ -56,7 +58,7 @@ API_PROXY_TARGET=http://127.0.0.1:8000
 
 Reinicia Vite. Si las rutas del backend incluyen `/api/v1`, usa `VITE_API_BASE_URL=/api/api/v1`: el proxy elimina solo el primer `/api`. En producción configura una URL HTTPS absoluta o un proxy de mismo origen en el servidor que entrega `dist/`; el proxy de Vite solo sirve para desarrollo.
 
-La documentación HTML existente solo declara un mensaje para el resultado de login. El contrato necesita un token y un perfil con rol. Las rutas de listado de ocurrencias, curaduría, usuarios y refresco permanecen deshabilitadas hasta configurarlas expresamente. Consulta [INTEGRACION_FASTAPI.md](docs/INTEGRACION_FASTAPI.md).
+La documentación HTML existente solo declara un mensaje para el resultado de login. El contrato necesita un token y un perfil con rol. Las rutas de listado de ocurrencias, curaduría, usuarios y refresco permanecen deshabilitadas hasta configurarlas expresamente. El guardado completo requiere además los contratos propuestos de hallazgos, fichas y fotografías; se bloquea con un mensaje claro si no están habilitados. Consulta [INTEGRACION_FASTAPI.md](docs/INTEGRACION_FASTAPI.md) y [REGISTRO_COMPLETO.md](docs/REGISTRO_COMPLETO.md).
 
 ## Estructura
 
@@ -68,7 +70,10 @@ frontend/
     types.ts              modelos del frontend
     components/
       UI.tsx              estados, fotos y diálogo accesible
-      Forms.tsx           autenticación, taxón, ocurrencia y carga
+      Forms.tsx           autenticación
+      RecordForm.tsx      hallazgo, fotos, ubicación, evento y medidas
+      TaxonForm.tsx       ficha, bibliografía y entrevistas
+      UploadForm.tsx      fotos adicionales y créditos
       SpeciesDetail.tsx   ficha de especie
       OccurrenceMap.tsx   mapa y marcadores
       UserManagement.tsx usuarios y asignación de perfiles

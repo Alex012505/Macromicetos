@@ -1,0 +1,15 @@
+import type { Occurrence } from '../types';
+import { morphologyLabel } from '../lib/morphology.mjs';
+import { Photo, StatusBadge } from './UI';
+
+export function DetailFields({ rows }: { rows: [string, unknown][] }) {
+  return <dl className="detail-fields">{rows.filter(([, v]) => v !== undefined && v !== null && v !== '').map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{String(value)}</dd></div>)}</dl>;
+}
+export default function RecordDetails({ record: o }: { record: Occurrence }) {
+  return <><StatusBadge status={o.status} /><DetailFields rows={[
+    ['ID del hallazgo', o.id], ['Tipo de registro', o.basisOfRecord], ['Identificador externo', o.externalOccurrenceId], ['Fecha de observación', o.eventDate || o.date], ['Fecha y hora del hallazgo', o.occurrenceDate],
+    ['Registrado por', o.recordedBy], ['Identificado por', o.author], ['Fecha de identificación', o.date], ['País', o.country], ['Departamento', o.department], ['Municipio', o.municipality], ['Localidad', o.locality],
+    ['Coordenadas WGS84', o.lat != null && o.lng != null ? `${o.lat}, ${o.lng}` : 'Sin coordenadas'], ['Incertidumbre (m)', o.uncertaintyM], ['Elevación (m)', o.elevationM],
+    ['Hábitat', o.habitat], ['Sustrato', o.substrate], ['Notas del sitio', o.locationRemarks], ['Tipo de evento', o.eventType], ['Código de campo', o.fieldNumber], ['Protocolo', o.samplingProtocol], ['Esfuerzo de muestreo', o.samplingEffort], ['Notas de la salida', o.eventRemarks], ['Notas del hallazgo', o.remarks], ['Observaciones de curaduría', o.reviewNote],
+  ]} />{!!o.morphology?.length && <><h3>Morfología del espécimen</h3>{o.morphology.map(m => <DetailFields key={m.type} rows={[[morphologyLabel(m.type), `${m.value} ${m.unit || ''}`], ['Fecha de evaluación', m.determinedDate], ['Notas del rasgo', m.remarks]]} />)}</>}{!!o.measurements.length && <><h3>Microclima y otras medidas</h3><DetailFields rows={o.measurements.map((m, i) => [`${m.name} · ${m.scope === 'event' ? 'evento' : 'hallazgo'} (${i + 1})`, `${m.value} ${m.unit || ''}`])} /></>}{!!o.participants?.length && <><h3>Participantes</h3>{o.participants.map(p => <DetailFields key={p.id} rows={[[p.displayName, `${p.role} · ${p.scope === 'event' ? 'salida de campo' : 'hallazgo'}${p.isPrimary ? ' · principal' : ''}`], ['Afiliación', p.affiliation], ['ORCID', p.orcid]]} />)}</>}{!!o.images.length && <div className="detail-gallery">{o.images.map((url, i) => { const p = o.photos?.find(p => p.url === url); return <figure key={`${url}-${i}`}><Photo src={url} name={`Fotografía del hallazgo ${i + 1}`} /><figcaption>{p?.photoType || 'Fotografía'} · {p?.photographer || 'Sin fotógrafo registrado'}{p?.rightsHolder ? ` · Titular: ${p.rightsHolder}` : ''} · {p?.license || 'Sin licencia declarada'}{p?.qcPassed != null && ` · Control de calidad: ${p.qcPassed ? 'aprobado' : 'no aprobado'}`}{p?.blurScore != null && ` · Desenfoque: ${p.blurScore}`}{p?.credits?.map(c => <span className="credit-line" key={c.id}>{c.displayName} · {c.role}{c.affiliation ? ` · ${c.affiliation}` : ''}{c.orcid ? ` · ORCID: ${c.orcid}` : ''}</span>)}</figcaption></figure>; })}</div>}</>;
+}
