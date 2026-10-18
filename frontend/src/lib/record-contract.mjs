@@ -21,6 +21,7 @@ export function normalizeParticipants(participants = []) {
 }
 export function recordPayload(o) {
   return {
+    owner_id: o.ownerId,
     location: { location_id: o.locationId, ...mapFields(o, { country: 'country', department: 'state_province', municipality: 'municipality', locality: 'locality', lat: 'decimal_latitude', lng: 'decimal_longitude', uncertaintyM: 'coordinate_uncertainty_m', elevationM: 'elevation_m', habitat: 'habitat', locationRemarks: 'location_remarks' }) },
     event: { event_id: o.eventId, location_id: o.locationId, ...mapFields(o, { eventType: 'event_type', fieldNumber: 'field_number', eventDate: 'event_date', recordedBy: 'recorded_by', samplingProtocol: 'sampling_protocol', samplingEffort: 'sampling_effort', eventRemarks: 'event_remarks' }) },
     occurrence: { occurrence_id: o.id, event_id: o.eventId, taxon_id: o.taxonId || null, ...mapFields(o, { externalOccurrenceId: 'external_occurrence_id', basisOfRecord: 'basis_of_record', recordedBy: 'recorded_by', occurrenceDate: 'event_date', substrate: 'substrate', author: 'identified_by', date: 'date_identified', remarks: 'occurrence_remarks' }) },

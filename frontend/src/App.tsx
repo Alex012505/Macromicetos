@@ -8,6 +8,7 @@ import {
 import { api, config, http } from './lib/api';
 import { loadDemo, saveDemo, demoUserForRole } from './data/demo';
 import { canAccessPage, canEditOccurrence, capabilitiesFor } from './lib/permissions.mjs';
+import { assignOccurrenceForSession } from './lib/record-ownership.mjs';
 import { roleNames, statusNames, type Dataset, type Occurrence, type Role, type Status, type Taxon, type User, type PendingPhoto } from './types';
 import { Busy, Empty, Modal, Notice, Photo, StatusBadge } from './components/UI';
 import OccurrenceMap from './components/OccurrenceMap';
@@ -108,6 +109,7 @@ export default function App() {
     if (!canWrite) throw new Error('Tu rol no permite guardar registros.');
     const previous = data.occurrences.find(o => o.id === record.id);
     if (previous && !canEdit(previous)) throw new Error('No tienes permiso para editar este registro.');
+    record = assignOccurrenceForSession(record, user, data.users, previous);
     setSaving(true);
     try { if (config.demo) {
       record = await withLocalPhotos(record, photos);
@@ -117,16 +119,21 @@ export default function App() {
     setModal(null); notify(config.demo ? 'Registro guardado en la demostración local.' : 'Registro enviado al servidor.');
     } finally { setSaving(false); }
   }
-  async function saveTaxon(taxon: Taxon) {
-    if (!canWrite) throw new Error('Tu rol no permite crear especies.');
+  async function persistTaxon(taxon: Taxon): Promise<Taxon> {
+    if (!canWrite || !user) throw new Error('Tu rol no permite crear especies.');
     const existing = data.taxa.find(t => t.id === taxon.id);
-    if (existing && role !== 'admin' && existing.ownerId !== user?.id) throw new Error('Solo puedes editar las fichas de tu autoría.');
+    if (existing && role !== 'admin' && existing.ownerId !== user.id) throw new Error('Solo puedes editar las fichas de tu autoría.');
+    if (!existing) taxon = { ...taxon, ownerId: user.id };
     setSaving(true);
     try {
-      if (config.demo) await updateDataset({ ...data, taxa: existing ? data.taxa.map(t => t.id === taxon.id ? taxon : t) : [...data.taxa, taxon] });
-      else { const saved = await api.createTaxon(taxon); setData(current => ({ ...current, taxa: [...current.taxa.filter(t => t.id !== saved.id), saved] })); }
-      setModal(null); notify('Ficha taxonómica guardada.');
+      if (config.demo) { await updateDataset({ ...data, taxa: existing ? data.taxa.map(t => t.id === taxon.id ? taxon : t) : [...data.taxa, taxon] }); return taxon; }
+      const saved = await api.createTaxon(taxon);
+      setData(current => ({ ...current, taxa: [...current.taxa.filter(t => t.id !== saved.id), saved] }));
+      return saved;
     } finally { setSaving(false); }
+  }
+  async function saveTaxon(taxon: Taxon) {
+    await persistTaxon(taxon); setModal(null); notify('Ficha taxonómica guardada.');
   }
   async function review(o: Occurrence, next: Status, note: string) {
     if (!canCurate) throw new Error('Tu rol no permite revisar registros.');
@@ -161,7 +168,7 @@ export default function App() {
     <div className="workspace">
       <header className="topbar"><div className="topbar-location"><button className="icon-btn mobile-menu" aria-label="Abrir navegación" onClick={() => setMobileNav(true)}><Menu size={22} /></button><span className="breadcrumb">Plataforma académica</span><span className="breadcrumb-divider">/</span><strong>{route.speciesId ? 'Ficha de especie' : pageTitles[route.page]}</strong></div>
         <div className="topbar-actions"><span className={`mode-badge ${config.demo ? 'demo' : ''}`}>{config.demo ? 'Demostración' : 'Modo API'}</span>
-          {user ? <div className="user-control"><span className="avatar">{user.name.split(' ').map(n => n[0]).slice(0, 2).join('')}</span><div className="user-label"><strong>{user.name}</strong>{config.demo ? <select aria-label="Rol de demostración" value={role} onChange={e => { setUser(demoUserForRole(e.target.value as Role)); navigate('dashboard'); }}>{Object.entries(roleNames).map(([key, label]) => <option key={key} value={key}>{label} · demo</option>)}</select> : <span>{roleNames[role]}</span>}</div><button className="icon-btn" title="Cerrar sesión" aria-label="Cerrar sesión" onClick={() => { http.setTokens(); setUser(null); if (!config.demo) setData(blank); navigate('dashboard'); }}><LogOut size={17} /></button></div>
+          {user ? <div className="user-control"><span className="avatar">{user.name.split(' ').map(n => n[0]).slice(0, 2).join('')}</span><div className="user-label"><strong>{user.name}</strong>{config.demo ? <select aria-label="Rol de demostración" value={role} onChange={e => { setUser(data.users.find(account => account.role === e.target.value) || demoUserForRole(e.target.value as Role)); navigate('dashboard'); }}>{Object.entries(roleNames).map(([key, label]) => <option key={key} value={key}>{label} · demo</option>)}</select> : <span>{roleNames[role]}</span>}{config.demo && role === 'researcher' && <select aria-label="Cuenta de investigador" value={user.id} onChange={e => { const account = data.users.find(u => u.id === e.target.value && u.role === 'researcher'); if (account) { setUser(account); navigate('dashboard'); } }}>{data.users.filter(u => u.role === 'researcher').map(account => <option key={account.id} value={account.id}>{account.name}</option>)}</select>}</div><button className="icon-btn" title="Cerrar sesión" aria-label="Cerrar sesión" onClick={() => { http.setTokens(); setUser(null); if (!config.demo) setData(blank); navigate('dashboard'); }}><LogOut size={17} /></button></div>
           : <button className="btn small" onClick={() => setModal('auth')}><LogIn size={16} />Iniciar sesión</button>}
         </div>
       </header>
@@ -197,8 +204,8 @@ export default function App() {
       </main>
     </div>
     {toast && <div className="toast" role="status"><Check size={18} /><span>{toast}</span><button className="icon-btn" aria-label="Cerrar notificación" onClick={() => setToast('')}><X size={16} /></button></div>}
-    {modal === 'auth' && <Modal title="Acceso a la plataforma académica" onClose={() => setModal(null)}><AuthForm onSuccess={u => { setUser(u); setModal(null); notify(config.demo ? 'Sesión de demostración iniciada.' : 'Sesión iniciada.'); }} /></Modal>}
-    {modal === 'record' && <Modal title={editRecord ? 'Editar registro de campo' : 'Registrar un nuevo hallazgo'} wide onClose={() => { if (!saving) setModal(null); }}><RecordForm taxa={data.taxa} initial={editRecord} author={user?.name || ''} ownerId={user?.id || ''} onSave={saveOccurrence} onCancel={() => setModal(null)} /></Modal>}
+    {modal === 'auth' && <Modal title="Acceso a la plataforma académica" onClose={() => setModal(null)}><AuthForm demoAccounts={data.users} onSuccess={u => { setUser(u); setModal(null); notify(config.demo ? 'Sesión de demostración iniciada.' : 'Sesión iniciada.'); }} /></Modal>}
+    {modal === 'record' && user && <Modal title={editRecord ? 'Editar registro de campo' : 'Registrar un nuevo hallazgo'} wide onClose={() => { if (!saving) setModal(null); }}><RecordForm taxa={data.taxa} initial={editRecord} user={user} users={data.users} onSave={saveOccurrence} onCreateTaxon={persistTaxon} onCancel={() => setModal(null)} /></Modal>}
     {modal === 'taxon' && <Modal title={editTaxon ? 'Editar ficha taxonómica' : 'Añadir una especie al catálogo'} wide onClose={() => { if (!saving) setModal(null); }}><TaxonForm existing={data.taxa} initial={editTaxon} ownerId={user?.id || ''} onSave={saveTaxon} onCancel={() => setModal(null)} /></Modal>}
     {modal === 'upload' && <Modal title="Añadir fotografías al hallazgo" wide onClose={() => { if (!saving) setModal(null); }}><UploadForm records={data.occurrences.filter(canEdit)} taxa={data.taxa} initialId={uploadRecordId} photographer={user?.name || ''} onDone={async (recordId, photos) => {
       const record = data.occurrences.find(o => o.id === recordId);

@@ -44,7 +44,7 @@ export function normalizeOccurrence(raw: any): Occurrence {
   const location = raw.event?.location || raw.location || {};
   const key = id(raw.occurrence_id || raw.id);
   if (!key) throw new ApiError('La ocurrencia llegó sin identificador.');
-  return { id: key, ownerId: id(raw.owner_id || raw.created_by_id || raw.user_id) || undefined, taxonId: id(raw.taxon_id || raw.taxon?.taxonID || raw.taxon?.taxon_id),
+  return { id: key, ownerId: id(raw.owner_id || raw.user_id) || undefined, createdById: id(raw.created_by_id) || undefined, taxonId: id(raw.taxon_id || raw.taxon?.taxonID || raw.taxon?.taxon_id),
     eventId: id(raw.event_id || raw.event?.event_id), author: raw.identified_by || '',
     date: raw.date_identified || '',
     department: location.state_province || '', locality: location.locality || location.municipality || '',

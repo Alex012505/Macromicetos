@@ -33,3 +33,8 @@ test('empty save responses produce meaningful errors', () => {
   assert.throws(() => normalizeOccurrence(null), /no devolvió/);
   assert.throws(() => normalizeTaxon(undefined), /no devolvió/);
 });
+test('record owner is distinct from the account that submitted it', () => {
+  const assigned = normalizeOccurrence({ occurrence_id: 'o', owner_id: 'researcher', created_by_id: 'admin', recorded_by: 'Investigador' });
+  assert.equal(assigned.ownerId, 'researcher'); assert.equal(assigned.createdById, 'admin');
+  assert.equal(normalizeOccurrence({ occurrence_id: 'old', created_by_id: 'admin' }).ownerId, undefined);
+});

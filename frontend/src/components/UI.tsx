@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { AlertCircle, Check, Flower2, LoaderCircle, X } from 'lucide-react';
 import { statusNames, type Status } from '../types';
 
@@ -22,6 +22,7 @@ export function Busy({ children = 'Cargando información…' }: { children?: Rea
 }
 export function Modal({ title, children, onClose, wide = false }: { title: string; children: ReactNode; onClose: () => void; wide?: boolean }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   useEffect(() => {
@@ -32,8 +33,8 @@ export function Modal({ title, children, onClose, wide = false }: { title: strin
     dialog.addEventListener('cancel', cancel);
     return () => { dialog.removeEventListener('cancel', cancel); dialog.close(); previous?.focus(); };
   }, []);
-  return <dialog ref={ref} className={`modal ${wide ? 'wide' : ''}`} aria-labelledby="modal-title" onClick={e => { if (e.target === ref.current) onClose(); }}>
-    <div className="modal-head"><h2 id="modal-title">{title}</h2><button className="icon-btn" aria-label="Cerrar diálogo" onClick={onClose}><X size={20} /></button></div>
+  return <dialog ref={ref} className={`modal ${wide ? 'wide' : ''}`} aria-labelledby={titleId} onClick={e => { if (e.target === ref.current) onClose(); }}>
+    <div className="modal-head"><h2 id={titleId}>{title}</h2><button className="icon-btn" aria-label="Cerrar diálogo" onClick={onClose}><X size={20} /></button></div>
     <div className="modal-body">{children}</div>
   </dialog>;
 }

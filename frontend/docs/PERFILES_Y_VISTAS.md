@@ -44,3 +44,12 @@ El módulo de usuarios permite cambiar roles en la demostración. La interfaz ev
 La interfaz oculta controles, restringe rutas directas y revisa permisos antes de guardar. Estas medidas mejoran la experiencia; la seguridad efectiva depende de que FastAPI compruebe identidad, rol y propiedad en cada endpoint.
 
 La versión expositiva no incluye un módulo de conexión e integración. La configuración técnica del backend permanece en el código, la documentación y los archivos de entorno.
+
+
+## Responsabilidad desde la sesión y catálogo durante el registro
+
+El investigador registra siempre para su propia cuenta autenticada. «Investigador responsable» y «Registrado por» son campos de solo lectura; la asignación se valida también al guardar. Solo el administrador puede seleccionar otro investigador. El registro asignado pasa a la vista propia del investigador destinatario y conserva por separado quién lo creó.
+
+En demostración, Laura y Diego permiten comprobar la separación de registros: selecciona la cuenta al iniciar sesión o desde el selector «Cuenta de investigador» del encabezado. Las facultades de administración se simulan con el perfil correspondiente.
+
+Investigadores y administradores pueden buscar especies ya registradas y crear una especie nueva desde el primer paso del hallazgo. La creación conserva el borrador y selecciona la nueva especie automáticamente.

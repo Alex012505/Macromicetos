@@ -49,6 +49,7 @@ export const demoUsers = [
   { id: 'demo-u1', name: 'Laura Martínez', email: 'laura@example.org', role: 'researcher' as const },
   { id: 'demo-u2', name: 'Andrés Rojas', email: 'andres@example.org', role: 'curator' as const },
   { id: 'demo-u3', name: 'Camila Torres', email: 'camila@example.org', role: 'admin' as const },
+  { id: 'demo-u4', name: 'Diego Ramírez', email: 'diego@example.org', role: 'researcher' as const },
 ];
 const STORAGE_KEY = 'macromicetos-demo-dataset-v2';
 const LEGACY_KEY = 'virtus-demo-dataset-v1';
@@ -64,6 +65,7 @@ export async function loadDemo(): Promise<Dataset> {
     if (data && Array.isArray(data.taxa) && Array.isArray(data.occurrences) && Array.isArray(data.users)) {
       return {
         ...data,
+        users: data.users.some((u: User) => u.id === 'demo-u4') ? data.users : [...data.users, demoUsers.find(u => u.id === 'demo-u4')!],
         taxa: data.taxa.map((t: Taxon) => ({ ...t, image: normalizeDemoImage(t.image, import.meta.env.BASE_URL) })),
         occurrences: data.occurrences.map((o: Occurrence) => ({
           ...migrateOccurrence(o, import.meta.env.BASE_URL), ownerId: o.ownerId || demoUsers.find(u => u.name === o.author)?.id,

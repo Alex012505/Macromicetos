@@ -145,6 +145,7 @@ em { font-synthesis: style; }
 .profile-actions { padding: 0 32px 24px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .profile-actions .heading-actions { flex-direction: row; flex-wrap: wrap; }
 .photo-upload-links { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 22px; }
+.species-search-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: -4px 0 23px; }
 .record-details { border: 1px solid var(--line); border-radius: 10px; margin: 15px 0; padding: 18px; }
 .record-details summary { cursor: pointer; font-weight: 650; font-size: .9rem; line-height: 1.6; }
 .record-details[open] summary { margin-bottom: 22px; }

@@ -42,6 +42,7 @@ export interface EthnoSurvey {
 }
 export interface Occurrence {
   ownerId?: string;
+  createdById?: string;
   id: string; taxonId: string; eventId: string; author: string; date: string;
   department: string; locality: string; lat: number | null; lng: number | null;
   substrate: string; habitat: string; remarks: string; status: Status;

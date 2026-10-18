@@ -36,6 +36,18 @@ Los nombres científicos, géneros y epítetos se muestran en cursiva en catálo
 
 La geolocalización requiere permiso y contexto seguro. No se solicita al abrir el formulario: la persona pulsa «Usar mi ubicación». Se registra precisión e incertidumbre disponibles, se informa de denegación, falta de posición o timeout, y se descartan respuestas tardías al cambiar de modo o abandonar el paso. Ver [documentación de Geolocation](https://developer.mozilla.org/en-US/docs/Web/API/Geolocation/getCurrentPosition).
 
+## Responsabilidad del registro y especies durante el hallazgo
+
+El investigador responsable se toma de la cuenta autenticada. Para investigadores, «Investigador responsable» y «Registrado por» son de solo lectura; antes de guardar también se fuerzan `ownerId` y `recordedBy` desde la sesión, aunque el borrador contenga valores manipulados. Solo el administrador puede seleccionar otra cuenta investigadora. Un hallazgo asignado por administración aparece en los registros del investigador elegido, quien puede editarlo y añadir fotos.
+
+La demostración distingue `ownerId` (cuenta responsable) de `createdById` (cuenta que creó el registro). Editar un registro no modifica su creador original. Se conservan los responsables históricos al editar, aunque su perfil haya cambiado. «Identificado por» mantiene su significado científico de atribución de la identificación taxonómica y no determina la propiedad del registro.
+
+El acceso demo permite elegir Laura Martínez o Diego Ramírez al iniciar sesión como investigador. El selector de cuenta del encabezado permite alternarlas para comprobar vistas propias. Esta simulación no reemplaza autenticación real.
+
+En el primer paso del hallazgo, «Buscar especie registrada» filtra por nombre científico, común, género o familia, sin distinguir mayúsculas o acentos. «Añadir especie nueva» abre el editor completo sobre el borrador actual, comprueba duplicados y selecciona automáticamente la especie creada. Las notas, ubicación, fotografías y demás campos del borrador se conservan. Cancelar la creación de la especie devuelve al hallazgo sin descartarlo.
+
+En API, el contrato de hallazgo envía `owner_id` junto a las entidades. El servidor debe permitir asignarlo a otra cuenta únicamente a administradores y obtener la responsabilidad del token para investigadores. Debe devolver `owner_id` separado de `created_by_id`; el cliente nunca utiliza al creador administrador como propietario implícito del registro. El historial `created_by_id` debe generarlo el servidor a partir del token, no confiar en el cliente.
+
 ## Persistencia de demostración
 
 Se usa IndexedDB, base `macromicetos-local`, almacén `datasets`, clave `current`. El mensaje de éxito se muestra después de confirmar la transacción. Esto permite guardar varias fotografías sin depender de la reducida cuota síncrona de `localStorage`.

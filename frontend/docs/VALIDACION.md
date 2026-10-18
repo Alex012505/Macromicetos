@@ -1,3 +1,22 @@
+# Comprobación de cuentas responsables y búsqueda de especies
+
+Ampliación del 17 de octubre de 2026. `npm test`: **48 pruebas correctas**; se añadieron casos de asignación desde sesión, rechazo de reasignaciones, distinción entre propietario y creador, y búsqueda por taxonomía/nombres sin acentos.
+
+`npm run build` completó TypeScript y la compilación de producción. Se mantiene la advertencia de tamaño de algunos paquetes. `git diff --check` no encontró errores de espacios.
+
+Recorrido de navegador con datos ficticios:
+
+- Administración seleccionó a Diego, buscó `Trametes`, eligió la especie existente y guardó el hallazgo a nombre de Diego.
+- «Registrado por» mostró a Diego en modo de solo lectura. Laura no encontró ese registro en su vista propia; Diego sí lo encontró.
+- Se inició sesión demo como Diego y el nuevo hallazgo tomó automáticamente su nombre, sin selector de responsable.
+- Laura creó una especie ficticia desde un hallazgo. El intento previo de crear un nombre ya existente fue rechazado. Al guardar la especie nueva, quedó seleccionada y se conservaron las notas del borrador.
+- El nuevo hallazgo se guardó en la cuenta de Laura. La búsqueda existente del catálogo y la exportación siguen disponibles.
+- Pulsar Enter en la búsqueda conserva el primer paso. En vista móvil de 390 px, el formulario y la página no presentan desbordamiento horizontal; evidencia adicional: `evidencias/2026-10-17/asignacion/busqueda-movil.png`.
+
+Evidencias: `evidencias/2026-10-17/asignacion/admin-investigador.png`, `investigador-especie-nueva.png` e `identidad-desde-login.png` dentro de esa carpeta. Las pruebas no escriben en un backend real.
+
+---
+
 # Verificación del registro ampliado
 
 Fecha: 17 de octubre de 2026. Windows, Node 20.18.0 y npm 10.8.2. Se conserva a continuación el informe histórico de la entrega anterior.
