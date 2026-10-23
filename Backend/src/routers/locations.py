@@ -54,3 +54,8 @@ def create_location(
     db.commit()
     db.refresh(nueva)
     return nueva
+
+# que es necesario unicamente para pintar en el mapa?
+#- fecha
+
+

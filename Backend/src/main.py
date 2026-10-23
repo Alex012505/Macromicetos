@@ -13,6 +13,7 @@ app = FastAPI(
         "Pipeline de datos de macrohongos de la región Orinoquía colombiana."
     ),
     version="1.0.0",
+     docs_ui="scalar",
 )
 
 for router in ALL_ROUTERS:

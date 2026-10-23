@@ -1,5 +1,5 @@
 """Routers de la API."""
-from routers import auth, taxa, locations, events, occurrences, measurements, multimedia, morphology
+from routers import auth, taxa, locations, events, occurrences, measurements, multimedia, morphology, curation
 ALL_ROUTERS = [
     auth.router,
     taxa.router,
@@ -7,5 +7,6 @@ ALL_ROUTERS = [
     events.router,
     occurrences.router, measurements.router,
     multimedia.router,
-    morphology.router
+    morphology.router,
+    curation.router,
 ]

@@ -1,17 +1,23 @@
 """Observaciones: create en ecological.occurrence."""
 import uuid
+import datetime as dt
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, status,Query
+from sqlalchemy import func,select
 from sqlalchemy.orm import Session
 
 from Security import get_current_user
 from database.Base import get_db
 from models import UserWeb
 from models.Event import Event
+from models.Location import Location
 from models.Occurrence import Occurrence
 from models.TaxonRef import TaxonRef
-from schemas.occurrence_schema import OccurrenceInput, OccurrenceResponse
+from schemas.occurrence_schema import OccurrenceInput, OccurrenceResponse, OccurrenceMapItem
+
+
 
 router = APIRouter(prefix="/occurrences", tags=["occurrences"])
 
@@ -64,3 +70,52 @@ def create_occurrence(
     db.commit()
     db.refresh(nueva)
     return nueva
+
+
+@router.get("/map", response_model=list[OccurrenceMapItem])
+def get_occurrence_map(
+    
+    db: Session = Depends(get_db),
+    usuario: UserWeb = Depends(get_current_user),
+    state_province: Optional[str] = Query(None, description="Departamento"),
+    family: Optional[str] = Query(None, description="Familia del taxón"),
+    date_from: Optional[dt.date] = Query(None, description="Fecha inicial (YYYY-MM-DD)"),
+    date_to: Optional[dt.date] = Query(None, description="Fecha final (YYYY-MM-DD)"),
+    
+    ):
+    """Puntos para el mapa: ocurrencia + sitio + taxón, en una sola fila."""
+    stmt = (
+        select(Occurrence, Location, TaxonRef.scientific_name)
+        .join(Event, Occurrence.event_id == Event.event_id)
+        .join(Location, Event.location_id == Location.location_id)
+        # LEFT JOIN: el taxón es nullable y el frontend pinta 'Sin identificar'
+        .outerjoin(TaxonRef, Occurrence.taxon_id == TaxonRef.taxon_id)
+    )
+
+    if state_province:
+        stmt = stmt.where(func.lower(Location.state_province) == state_province.lower())
+    if family:
+        stmt = stmt.where(func.lower(TaxonRef.family) == family.lower())
+    if date_from:
+        stmt = stmt.where(Event.event_date >= date_from)
+    if date_to:
+        stmt = stmt.where(Event.event_date <= date_to)
+
+    filas = db.execute(stmt).all()
+    return [
+        OccurrenceMapItem(
+            occurrence_id=occ.occurrence_id,
+            event_id=occ.event_id,
+            taxon_id=occ.taxon_id,
+            decimal_latitude=float(loc.decimal_latitude) if loc.decimal_latitude is not None else None,
+            decimal_longitude=float(loc.decimal_longitude) if loc.decimal_longitude is not None else None,
+            locality=loc.locality,
+            scientific_name=sci,
+        )
+        for occ, loc, sci in filas
+    ]
+
+
+
+
+    

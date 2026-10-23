@@ -44,3 +44,16 @@ class MultimediaResponse(BaseModel):
     rights_holder: str | None = None
     created_at: dt.datetime
     updated_at: dt.datetime
+
+class PhotoArchiveItem(BaseModel):
+    media_id: uuid.UUID
+    occurrence_id: uuid.UUID
+    photo_type: str
+    file_name: str
+    file_path: str
+    scientific_name: str | None = None
+    common_name_es: str | None = None
+    state_province: str | None = None
+    locality: str | None = None
+    event_date: dt.date | None = None
+    sha256_hash: str | None = None    
