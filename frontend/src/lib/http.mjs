@@ -12,9 +12,11 @@ export function createHttpClient({ baseUrl, fetchImpl = globalThis.fetch, timeou
   let accessToken = '';
   let refreshToken = '';
   let refreshPromise = null;
-  function setTokens(access = '', refresh = '') { accessToken = access; refreshToken = refresh; }
+  let sessionVersion = 0;
+  function setTokens(access = '', refresh = '') { accessToken = access; refreshToken = refresh; sessionVersion++; }
   function clearSession() { setTokens(); onSessionExpired(); }
   async function request(path, options = {}, retry = true) {
+    const requestSession = sessionVersion;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     const externalAbort = () => controller.abort();
@@ -41,15 +43,20 @@ export function createHttpClient({ baseUrl, fetchImpl = globalThis.fetch, timeou
       clearTimeout(timer);
       options.signal?.removeEventListener('abort', externalAbort);
     }
+    if (options.auth !== false && requestSession !== sessionVersion) throw new ApiError('Tu sesión cambió durante la solicitud. Reintenta con tu cuenta actual.', 401);
     if (response.status === 401 && options.auth !== false && accessToken) {
       if (retry && refreshPath && refreshToken) {
         if (!refreshPromise) refreshPromise = request(refreshPath, { method: 'POST', auth: false, body: { refreshToken } }, false)
           .then(data => {
+            if (requestSession !== sessionVersion) throw new ApiError('Tu sesión cambió durante la solicitud.', 401);
             const token = data?.accessToken || data?.access_token;
             if (!token) throw new ApiError('El servidor no devolvió un token de acceso.', 401);
-            setTokens(token, data.refreshToken || data.refresh_token || refreshToken);
+            // Refresh rotates credentials within the same authenticated session.
+            accessToken = token;
+            refreshToken = data.refreshToken || data.refresh_token || refreshToken;
           }).finally(() => { refreshPromise = null; });
-        try { await refreshPromise; } catch (error) { clearSession(); throw error; }
+        try { await refreshPromise; } catch (error) { if (requestSession === sessionVersion) clearSession(); throw error; }
+        if (requestSession !== sessionVersion) throw new ApiError('Tu sesión cambió durante la solicitud.', 401);
         return request(path, options, false);
       }
       clearSession();

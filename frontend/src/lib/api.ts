@@ -1,10 +1,12 @@
 import { createHttpClient, unwrapList, safeImageUrl, ApiError } from './http.mjs';
-import type { Taxon, Occurrence, User, Role, Status, PendingPhoto, EthnoSurvey } from '../types';
+import { readAccessToken, profileFromLogin } from './auth-session.mjs';
+import type { Taxon, Occurrence, User, Role, Status, PendingPhoto, PhotoMetadata, EthnoSurvey } from '../types';
 import { bundleForm, bundlePath, recordPayload, taxonPayload, normalizeMorphology, normalizeParticipants, fromFields, sourceFields, surveyFields, knowledgeFields, useFields } from './record-contract.mjs';
 
 export const config = {
-  demo: import.meta.env.VITE_DATA_MODE !== 'api',
+  demo: import.meta.env.VITE_DATA_MODE === 'demo',
   baseUrl: import.meta.env.VITE_API_BASE_URL || '/api',
+  loginPath: import.meta.env.VITE_LOGIN_PATH || '/auth/login-json',
   occurrencesPath: import.meta.env.VITE_OCCURRENCES_LIST_PATH || '',
   curatePath: import.meta.env.VITE_CURATE_PATH || '',
   usersPath: import.meta.env.VITE_USERS_PATH || '',
@@ -23,6 +25,13 @@ const coordinate = (value: unknown, limit: number) => {
   if (value == null || value === '') return null;
   const n = Number(value); return Number.isFinite(n) && Math.abs(n) <= limit ? n : null;
 };
+function normalizePhoto(raw: any): PhotoMetadata {
+  return { id: id(raw.media_id), url: safeImageUrl(raw.source_url || raw.access_uri || raw.url || raw.image_url) || '',
+    photoType: raw.photo_type, fileName: raw.file_name, photographer: raw.photographer,
+    rightsHolder: raw.rights_holder, license: raw.license, mimeFormat: raw.mime_format,
+    sourceUrl: raw.source_url, blurScore: raw.blur_score, qcPassed: raw.qc_passed,
+    credits: normalizeParticipants((raw.credits || []).map((credit: any) => ({ ...credit, party_role: credit.credit_role || credit.party_role }))) };
+}
 export function normalizeTaxon(raw: any): Taxon {
   if (!raw || typeof raw !== 'object') throw new ApiError('El servidor no devolvió la ficha taxonómica guardada.');
   raw = raw.taxon ? { ...raw.taxon, ...raw, taxon: undefined } : raw;
@@ -57,18 +66,17 @@ export function normalizeOccurrence(raw: any): Occurrence {
     recordedBy: raw.recorded_by || raw.event?.recorded_by || '', samplingProtocol: raw.event?.sampling_protocol || '', samplingEffort: raw.event?.sampling_effort || '', eventRemarks: raw.event?.event_remarks || '',
     basisOfRecord: raw.basis_of_record || '', externalOccurrenceId: raw.external_occurrence_id || '', occurrenceDate: raw.event_date || '',
     morphology: normalizeMorphology(raw.morphology || raw.morphology_facts || []), participants: normalizeParticipants(raw.participants),
-    photos: (raw.multimedia || []).map((m: any) => ({ id: m.media_id, url: safeImageUrl(m.source_url || m.access_uri || m.url || m.image_url), photoType: m.photo_type, fileName: m.file_name, photographer: m.photographer, rightsHolder: m.rights_holder, license: m.license, mimeFormat: m.mime_format, sourceUrl: m.source_url, blurScore: m.blur_score, qcPassed: m.qc_passed, credits: normalizeParticipants((m.credits || []).map((credit: any) => ({ ...credit, party_role: credit.credit_role || credit.party_role }))) })).filter((p: any) => p.url),
+    photos: (raw.multimedia || []).map(normalizePhoto),
     images: (raw.multimedia || []).map((m: any) => safeImageUrl(m.source_url || m.access_uri || m.url || m.image_url)).filter(Boolean),
     measurements: (raw.measurements || []).map((m: any) => ({ name: m.measurement_type, value: m.measurement_value, unit: m.measurement_unit, scope: m.occurrence_id ? 'occurrence' : 'event' })),
   };
 }
 export function normalizeUser(raw: any): User {
-  const roles: Role[] = ['readonly_user', 'researcher', 'curator', 'admin'];
-  const value = raw.role || raw.user_role;
-  const incoming = ({ viewer: 'readonly_user', analyst: 'readonly_user', field_collector: 'researcher' } as Record<string, string>)[value] || value;
+  const roles: Role[] = ['viewer', 'analyst', 'curator', 'admin'];
+  const incoming = raw.role || raw.user_role;
   return { id: id(raw.user_web_id || raw.user_id || raw.id || raw.sub), email: raw.email || '',
     name: raw.party?.display_name || raw.name || [raw.first_name, raw.last_name].filter(Boolean).join(' ') || raw.email || 'Mi cuenta',
-    role: roles.includes(incoming) ? incoming : 'readonly_user' };
+    role: roles.includes(incoming) ? incoming : 'viewer' };
 }
 export const api = {
   async taxa(search = '') { return unwrapList(await http.request(`/taxa${search ? `?search=${encodeURIComponent(search)}` : ''}`)).map(normalizeTaxon); },
@@ -78,38 +86,57 @@ export const api = {
   async users() { return config.usersPath ? unwrapList(await http.request(config.usersPath)).map(normalizeUser) : []; },
   async updateUserRole(userId: string, role: Role) {
     if (!config.userUpdatePath) throw new ApiError('El backend debe definir la actualización de roles.');
-    return http.request(config.userUpdatePath.replace('{id}', encodeURIComponent(userId)), { method: 'PATCH', body: { role: ({ readonly_user: 'viewer', researcher: 'field_collector', curator: 'curator', admin: 'admin' } as Record<Role, string>)[role] } });
+    return http.request(config.userUpdatePath.replace('{id}', encodeURIComponent(userId)), { method: 'PATCH', body: { role } });
   },
   async login(email: string, password: string): Promise<User> {
-    const data = await http.request('/auth/login', { method: 'POST', body: { email, password }, auth: false });
-    const token = data?.access_token || data?.accessToken || data?.token;
-    if (!token) throw new ApiError('El contrato de login no devuelve un token. El equipo backend debe retornar access_token y el perfil del usuario.');
-    http.setTokens(token, data.refresh_token || data.refreshToken || '');
-    let profile = data.userProfile || data.user || data.profile;
-    if (!profile && config.mePath) {
-      try { profile = await http.request(config.mePath); } catch (error) { http.setTokens(); throw error; }
+    http.setTokens();
+    try {
+      const data = await http.request(config.loginPath, { method: 'POST', body: { email: email.trim(), password }, auth: false });
+      const token = data?.access_token || data?.accessToken || data?.token;
+      const claims = readAccessToken(token);
+      http.setTokens(token, data.refresh_token || data.refreshToken || '');
+      const profile = config.mePath ? await http.request(config.mePath) : data.userProfile || data.user || data.profile;
+      // The server validates credentials and signs the JWT. No user-selected role or stored profile is accepted.
+      const user = normalizeUser(profileFromLogin(claims, profile, email.trim()));
+      readAccessToken(token); // A slow profile request must not establish an already expired session.
+      return { ...user, expiresAt: claims.expiresAt };
+    } catch (error) {
+      http.setTokens();
+      throw error;
     }
-    // Sin perfil, la interfaz conserva el mínimo privilegio. No confía en un rol editable por el cliente.
-    return normalizeUser(profile || { email });
   },
   register(body: { email: string; password: string; first_name: string; last_name: string }) {
     return http.request('/auth/register', { method: 'POST', body, auth: false });
   },
   async createTaxon(taxon: Taxon) {
-    return normalizeTaxon(await http.request(bundlePath(config.taxonBundlePath, taxon.id, 'fichas taxonómicas'), { method: 'PUT', body: taxonPayload(taxon) }));
+    if (config.taxonBundlePath) {
+      return normalizeTaxon(await http.request(bundlePath(config.taxonBundlePath, taxon.id, 'fichas taxonómicas'), { method: 'PUT', body: taxonPayload(taxon) }));
+    }
+    if ([taxon.morphology, taxon.sources, taxon.knowledge, taxon.participants].some(items => items?.length)) {
+      throw new ApiError('El guardado completo de morfología, fuentes, entrevistas y participantes requiere habilitar el contrato de ficha completa.');
+    }
+    const { taxon_id: _clientId, ...body } = taxonPayload({ ...taxon, rank: taxon.rank || 'species' }).taxon;
+    return normalizeTaxon(await http.request('/taxa', { method: 'POST', body }));
   },
   async saveOccurrence(o: Occurrence, photos: PendingPhoto[] = []) {
     return normalizeOccurrence(await http.request(bundlePath(config.recordBundlePath, o.id, 'hallazgos'), { method: 'PUT', body: bundleForm(recordPayload(o), photos) }));
   },
-  async addPhotos(occurrenceId: string, photos: PendingPhoto[]) {
-    return normalizeOccurrence(await http.request(bundlePath(config.mediaBundlePath, occurrenceId, 'fotografías'), { method: 'PUT', body: bundleForm({ occurrence_id: occurrenceId }, photos) }));
+  async addPhotos(occurrenceId: string, photos: PendingPhoto[]): Promise<PhotoMetadata[]> {
+    if (config.mediaBundlePath) {
+      const saved = normalizeOccurrence(await http.request(bundlePath(config.mediaBundlePath, occurrenceId, 'fotografías'), { method: 'PUT', body: bundleForm({ occurrence_id: occurrenceId }, photos) }));
+      return saved.photos || [];
+    }
+    const body = new FormData();
+    for (const photo of photos) body.append('files', photo.file, photo.file.name);
+    const saved = unwrapList(await http.request(`/occurrences/${encodeURIComponent(occurrenceId)}/photos`, { method: 'POST', body }));
+    return saved.map(normalizePhoto);
   },
   curate(o: Occurrence, next: Status, note: string) {
     if (!config.curatePath) throw new ApiError('El endpoint de curaduría está pendiente de definición con el equipo backend.');
     return http.request(config.curatePath.replace('{id}', encodeURIComponent(o.id)), { method: 'PATCH', body: { status: next, review_note: note } });
   },
   upload(file: File, occurrenceId: string, photoType: string) {
-    const body = new FormData(); body.append('file', file); body.append('occurrence_id', occurrenceId); body.append('photo_type', photoType);
-    return http.request('/multimedia/upload', { method: 'POST', body });
+    const body = new FormData(); body.append('files', file, file.name); body.append('photo_type', photoType);
+    return http.request(`/occurrences/${encodeURIComponent(occurrenceId)}/photos`, { method: 'POST', body });
   },
 };

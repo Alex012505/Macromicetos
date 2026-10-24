@@ -21,7 +21,7 @@ Dirección esperada: **https://alex012505.github.io/Macromicetos/**.
 - `frontend/src/data/demo.ts`: utiliza la base de Vite para las fotos y repara rutas antiguas de la demostración almacenada sin borrar registros ni fotos añadidas.
 - `frontend/tests/assets.test.mjs`: comprueba rutas en localhost y Pages, migración y preservación de imágenes externas/subidas.
 - `frontend/package.json`: ejecuta también las pruebas de recursos.
-- `.github/workflows/deploy-pages.yml`: comprueba Pages al inicio, utiliza Node 24 y acciones checkout/setup-node v7, compila explícitamente en demo y ejecuta las pruebas antes de publicar.
+- `.github/workflows/deploy-pages.yml`: comprueba Pages al inicio, utiliza Node 24 y acciones checkout/setup-node v7, compila en modo API con autenticación y ejecuta las pruebas antes de publicar. La variable de repositorio `VITE_API_BASE_URL` debe contener la URL HTTPS pública del backend.
 
 `base: '/Macromicetos/'` ya era correcto y se conserva. Las rutas del favicon en HTML y del fondo fotográfico en CSS se ajustan durante la compilación de Vite. La navegación utiliza hash, por ejemplo `/Macromicetos/#/especies`, por lo que no necesita redirecciones del servidor para esas vistas.
 
@@ -41,7 +41,7 @@ En el servidor de preview, abrir `/Macromicetos/` en el puerto indicado. `fronte
 
 ## Alcance del hosting
 
-GitHub Pages sirve el frontend estático. No ejecuta FastAPI ni PostgreSQL. La exposición funciona en modo demostración y guarda los cambios únicamente en ese navegador. Conectar una API real requiere desplegarla por separado y configurar HTTPS, CORS y las variables públicas del frontend.
+GitHub Pages sirve el frontend estático. No ejecuta FastAPI ni PostgreSQL ni proporciona el proxy `/api` de desarrollo. El frontend exige autenticación y necesita una API desplegada por separado: configura HTTPS, CORS y la variable de repositorio `VITE_API_BASE_URL` antes de publicar. Si no se configura, la pantalla de acceso se muestra, pero el login no puede completarse desde Pages.
 
 La compilación local no confirma una publicación remota. La confirmación del hosting es una ejecución de despliegue exitosa y la revisión de la URL pública.
 

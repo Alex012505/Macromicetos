@@ -25,11 +25,11 @@ El repositorio contiene el frontend funcional y la documentación de integració
 | Perfil | Acceso |
 | --- | --- |
 | Visitante | Consulta catálogo, fichas, mapa y galería. |
-| Investigador | Crea especies y registros; edita sus propias observaciones y les añade fotografías. |
+| Investigador | Crea especies y registros asociados a su sesión; busca especies o crea nuevas durante el hallazgo; edita sus propias observaciones y les añade fotografías. |
 | Curador | Revisa observaciones, las verifica o solicita ajustes. |
-| Administrador | Gestiona todos los registros, curaduría, usuarios y roles. |
+| Administrador | Gestiona todos los registros, curaduría, usuarios y roles; puede registrar hallazgos a nombre de otro investigador. |
 
-El investigador dispone de una vista de sus registros y métricas propias. El curador accede a la cola de revisión. El administrador tiene una visión global y puede asignar perfiles. La interfaz restringe controles y rutas; **FastAPI deberá validar identidad, rol y propiedad en cada petición**.
+El investigador dispone de una vista de sus registros y métricas propias. Su cuenta se toma del login y no puede reasignar el registro; solo el administrador dispone del selector de investigador responsable. En demo se puede iniciar sesión como Laura o Diego para comprobarlo. El curador accede a la cola de revisión. El administrador tiene una visión global y puede asignar perfiles. La interfaz restringe controles y rutas; **FastAPI deberá validar identidad, rol y propiedad en cada petición**.
 
 
 
@@ -130,7 +130,7 @@ Las referencias originales sirven para documentar el contrato; no constituyen un
 
 ## Validación y documentación
 
-La entrega pasó la comprobación TypeScript, la compilación de producción y **38 pruebas** de transporte, permisos, recursos para Pages, coordenadas y geolocalización simulada, morfología, adaptación al ORM, migración y exportaciones. Se recorrieron las interfaces en navegador, incluidos escritorio, móvil, formularios y acceso por perfil. Se verificaron también descargas reales CSV/XLSX/PDF y la conservación de varias fotos tras recargar. La conexión con una base de datos real permanece pendiente; los contratos nuevos están detallados en la [guía del registro completo](frontend/docs/REGISTRO_COMPLETO.md).
+La entrega pasó la comprobación TypeScript, la compilación de producción y **48 pruebas** de transporte, permisos, recursos para Pages, coordenadas y geolocalización simulada, morfología, adaptación al ORM, migración y exportaciones. Se recorrieron las interfaces en navegador, incluidos escritorio, móvil, formularios y acceso por perfil. Se verificaron también descargas reales CSV/XLSX/PDF y la conservación de varias fotos tras recargar. La conexión con una base de datos real permanece pendiente; los contratos nuevos están detallados en la [guía del registro completo](frontend/docs/REGISTRO_COMPLETO.md).
 
 - [Guía técnica del frontend](frontend/README.md).
 - [Perfiles, vistas y reglas de propiedad](frontend/docs/PERFILES_Y_VISTAS.md).

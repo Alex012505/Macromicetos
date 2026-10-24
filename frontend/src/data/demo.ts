@@ -1,6 +1,6 @@
 import type { Dataset, Taxon, Occurrence, Role, User } from '../types';
 import { publicAssetUrl, normalizeDemoImage } from '../lib/assets.mjs';
-import { migrateOccurrence } from '../lib/demo-migration.mjs';
+import { migrateOccurrence, migrateDemoUser } from '../lib/demo-migration.mjs';
 import { readDemoDataset, writeDemoDataset, clearDemoDataset } from '../lib/demo-store.mjs';
 
 const imageUrl = (path: string) => publicAssetUrl(path, import.meta.env.BASE_URL);
@@ -46,15 +46,15 @@ export const demoOccurrences: Occurrence[] = Array.from({ length: 12 }, (_, i) =
   };
 });
 export const demoUsers = [
-  { id: 'demo-u1', name: 'Laura Martínez', email: 'laura@example.org', role: 'researcher' as const },
+  { id: 'demo-u1', name: 'Laura Martínez', email: 'laura@example.org', role: 'analyst' as const },
   { id: 'demo-u2', name: 'Andrés Rojas', email: 'andres@example.org', role: 'curator' as const },
   { id: 'demo-u3', name: 'Camila Torres', email: 'camila@example.org', role: 'admin' as const },
-  { id: 'demo-u4', name: 'Diego Ramírez', email: 'diego@example.org', role: 'researcher' as const },
+  { id: 'demo-u4', name: 'Diego Ramírez', email: 'diego@example.org', role: 'analyst' as const },
 ];
 const STORAGE_KEY = 'macromicetos-demo-dataset-v2';
 const LEGACY_KEY = 'virtus-demo-dataset-v1';
 export function demoUserForRole(role: Role): User {
-  if (role === 'readonly_user') return { id: 'demo-public', name: 'Visitante académico', email: '', role };
+  if (role === 'viewer') return { id: 'demo-public', name: 'Visitante académico', email: '', role };
   const sample = demoUsers.find(u => u.role === role)!;
   return { ...sample, role };
 }
@@ -65,7 +65,7 @@ export async function loadDemo(): Promise<Dataset> {
     if (data && Array.isArray(data.taxa) && Array.isArray(data.occurrences) && Array.isArray(data.users)) {
       return {
         ...data,
-        users: data.users.some((u: User) => u.id === 'demo-u4') ? data.users : [...data.users, demoUsers.find(u => u.id === 'demo-u4')!],
+        users: (data.users.some((u: User) => u.id === 'demo-u4') ? data.users : [...data.users, demoUsers.find(u => u.id === 'demo-u4')!]).map(migrateDemoUser),
         taxa: data.taxa.map((t: Taxon) => ({ ...t, image: normalizeDemoImage(t.image, import.meta.env.BASE_URL) })),
         occurrences: data.occurrences.map((o: Occurrence) => ({
           ...migrateOccurrence(o, import.meta.env.BASE_URL), ownerId: o.ownerId || demoUsers.find(u => u.name === o.author)?.id,

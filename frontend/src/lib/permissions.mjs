@@ -1,8 +1,8 @@
 export function capabilitiesFor(role) {
-  return { write: role === 'researcher' || role === 'admin', curate: role === 'curator' || role === 'admin', manageUsers: role === 'admin' };
+  return { write: role === 'analyst' || role === 'admin', curate: role === 'curator' || role === 'admin', manageUsers: role === 'admin' };
 }
 export function canEditOccurrence(role, userId, occurrence) {
-  return role === 'admin' || (role === 'researcher' && Boolean(userId) && occurrence.ownerId === userId);
+  return role === 'admin' || (role === 'analyst' && Boolean(userId) && occurrence.ownerId === userId);
 }
 export function canAccessPage(role, page) {
   const scope = capabilitiesFor(role);

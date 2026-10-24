@@ -1,6 +1,6 @@
-export type Role = 'readonly_user' | 'researcher' | 'curator' | 'admin';
+export type Role = 'viewer' | 'analyst' | 'curator' | 'admin';
 export type Status = 'verified' | 'pending' | 'rejected' | 'unknown';
-export interface User { id: string; name: string; email: string; role: Role }
+export interface User { id: string; name: string; email: string; role: Role; expiresAt?: number }
 export interface Taxon {
   ownerId?: string;
   id: string; scientificName: string; commonName: string; kingdom: string;
@@ -56,5 +56,5 @@ export interface Occurrence {
   morphology?: MorphologyFact[]; photos?: PhotoMetadata[]; participants?: Participant[];
 }
 export interface Dataset { taxa: Taxon[]; occurrences: Occurrence[]; users: User[] }
-export const roleNames: Record<Role, string> = { readonly_user: 'Visitante', researcher: 'Investigador', curator: 'Curador', admin: 'Administrador' };
+export const roleNames: Record<Role, string> = { viewer: 'Visitante', analyst: 'Investigador', curator: 'Curador', admin: 'Administrador' };
 export const statusNames: Record<Status, string> = { verified: 'Verificado', pending: 'En revisión', rejected: 'Requiere ajustes', unknown: 'Sin estado' };

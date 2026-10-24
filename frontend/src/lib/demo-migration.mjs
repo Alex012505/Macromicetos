@@ -1,6 +1,11 @@
 import { normalizeDemoImage } from './assets.mjs';
 import { referencePhotoCredit } from './photo-credits.mjs';
 
+export function migrateDemoUser(user) {
+  const role = ({ readonly_user: 'viewer', researcher: 'analyst', field_collector: 'analyst' })[user.role] || user.role;
+  return { ...user, role: ['viewer', 'analyst', 'curator', 'admin'].includes(role) ? role : 'viewer' };
+}
+
 export function migrateOccurrence(o, baseUrl) {
   const legacyDiameter = (o.measurements || []).find(m => ['diámetro del sombrero', 'diametro_sombrero'].includes(m.name.toLowerCase()));
   const morphology = o.morphology ?? (legacyDiameter ? [{ type: 'diametro_sombrero', value: legacyDiameter.value, unit: legacyDiameter.unit || 'cm' }] : []);

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { morphologyTypes, validateCoordinates, validateMorphology } from '../src/lib/morphology.mjs';
 import { recordPayload, taxonPayload, bundleForm, bundlePath, normalizeMorphology, normalizeParticipants } from '../src/lib/record-contract.mjs';
 import { csvText, occurrenceRows, speciesRows } from '../src/lib/export-data.mjs';
-import { migrateOccurrence } from '../src/lib/demo-migration.mjs';
+import { migrateOccurrence, migrateDemoUser } from '../src/lib/demo-migration.mjs';
 import { isPdfImageUrl } from '../src/lib/pdf-images.mjs';
 
 const morphology = [{ type: 'diametro_sombrero', value: '5–8', unit: 'cm', determinedDate: '2026-10-17', remarks: 'Medida en campo' }];
@@ -67,6 +67,15 @@ test('old demo records migrate without losing photographs or duplicating morphol
   assert.equal(migrated.measurements.length, 1); assert.deepEqual(migrated.images, old.images);
   assert.deepEqual(migrateOccurrence(migrated, '/Macromicetos/'), migrated);
 });
+test('stored demo roles migrate without losing account identity or permissions', () => {
+  for (const [oldRole, role] of [['readonly_user', 'viewer'], ['researcher', 'analyst'], ['field_collector', 'analyst'], ['viewer', 'viewer'], ['analyst', 'analyst'], ['curator', 'curator'], ['admin', 'admin'], ['unknown', 'viewer']]) {
+    const user = { id: 'u', name: 'Ana', email: 'ana@example.org', role: oldRole };
+    const migrated = migrateDemoUser(user);
+    assert.deepEqual(migrated, { ...user, role });
+    assert.deepEqual(migrateDemoUser(migrated), migrated);
+  }
+});
+
 test('PDF loader accepts local raster uploads and rejects active data URLs', () => {
   assert.equal(isPdfImageUrl('data:image/jpeg;base64,YWJj'), true);
   assert.equal(isPdfImageUrl('data:image/png;base64,YWJj'), true);

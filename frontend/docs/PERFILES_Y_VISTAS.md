@@ -4,6 +4,8 @@ La aplicación es un registro académico de macromicetos. La identidad del grupo
 
 ## Matriz de alcance
 
+Los valores de rol son `viewer` (Visitante), `analyst` (Investigador), `curator` (Curador) y `admin` (Administrador). Se usan sin traducción en tipos, permisos, selectores y API. Al cargar datos demo antiguos, se migran los roles anteriores conservando las cuentas y sus registros.
+
 | Vista o acción | Visitante | Investigador | Curador | Administrador |
 | --- | --- | --- | --- | --- |
 | Dashboard de consulta | Sí | Sí, con métricas propias | Sí, con cola pendiente | Sí |
@@ -35,9 +37,9 @@ La propiedad de un registro nuevo debe asignarla FastAPI a partir de la sesión 
 
 ## Demostración
 
-El selector de perfiles simula una sesión por rol para revisar sus vistas; no es un mecanismo real de autenticación ni de elevación de privilegios. Se utilizan las cuentas ficticias Laura Martínez (investigador), Andrés Rojas (curador), Camila Torres (administrador) y un visitante académico. Las observaciones de ejemplo tienen propietarios asociados.
+La aplicación exige autenticación de backend incluso al configurar datos de demostración. No existe selector de perfiles ni de cuentas. Las personas y observaciones demo siguen siendo datos ilustrativos; no son cuentas que permitan iniciar sesión.
 
-El módulo de usuarios permite cambiar roles en la demostración. La interfaz evita quitar el último administrador. Las operaciones reales de edición se habilitan solo al configurar `VITE_USER_UPDATE_PATH`; FastAPI debe aplicar la misma protección.
+Los usuarios de demostración son de solo lectura. Las operaciones reales de edición se habilitan al configurar `VITE_USER_UPDATE_PATH`; FastAPI debe autorizar al administrador y proteger la continuidad de al menos una cuenta administradora. Si se modifica el rol de la cuenta en uso, se cierra la sesión para obtener un token nuevo.
 
 ## Validación obligatoria del servidor
 
@@ -50,6 +52,6 @@ La versión expositiva no incluye un módulo de conexión e integración. La con
 
 El investigador registra siempre para su propia cuenta autenticada. «Investigador responsable» y «Registrado por» son campos de solo lectura; la asignación se valida también al guardar. Solo el administrador puede seleccionar otro investigador. El registro asignado pasa a la vista propia del investigador destinatario y conserva por separado quién lo creó.
 
-En demostración, Laura y Diego permiten comprobar la separación de registros: selecciona la cuenta al iniciar sesión o desde el selector «Cuenta de investigador» del encabezado. Las facultades de administración se simulan con el perfil correspondiente.
+La separación de registros se comprueba iniciando sesión con cuentas reales distintas del backend. El rol y la identidad proceden de la autenticación del servidor; no se pueden seleccionar desde el encabezado.
 
 Investigadores y administradores pueden buscar especies ya registradas y crear una especie nueva desde el primer paso del hallazgo. La creación conserva el borrador y selecciona la nueva especie automáticamente.

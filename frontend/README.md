@@ -32,13 +32,17 @@ npm run preview
 - Multimedia: galería, ampliación y carga inicial o posterior de varias fotos con tipo, licencia, titular y personas acreditadas.
 - Fichas PDF por especie: taxonomía, rasgos, contexto de los hallazgos, bibliografía y fotografías con créditos.
 - Ficha editable: taxonomía completa, morfología, responsables, fuentes y entrevistas con consentimiento y usos reportados.
-- Usuarios: listado y edición de perfiles en demo; lectura y actualización configurables para el backend.
-- Autenticación: login/registro reales preparados; entrada por rol para demostración sin credenciales.
+- Usuarios: lectura y actualización de perfiles mediante endpoints autorizados del backend; los usuarios de los datos demo son de solo lectura.
+- Autenticación: correo y contraseña para los cuatro perfiles, rol asignado por el servidor y cierre de sesión por expiración o HTTP 401. No hay selector de perfil ni acceso automático.
 - Guía: uso de la plataforma, alcance de perfiles, procedencia de datos y créditos. La configuración de FastAPI se gestiona mediante archivos de entorno; no forma parte de las vistas expositivas.
 
 ## Demostración y API real
 
-Sin `.env`, la aplicación usa demostración local. Empieza con Camila Torres, una administradora de demostración para que se puedan revisar todas las pantallas. El selector de roles existe únicamente en este modo. También puedes cerrar sesión y entrar al demo como visitante, investigador o curador.
+Sin `.env`, la aplicación usa la API real y muestra primero el formulario de acceso. Todos los perfiles, incluido `viewer`, deben autenticarse. El login envía JSON a `/auth/login-json`, la ruta existente en la rama `Backend`; el servidor verifica la contraseña y devuelve un JWT con `sub`, `role` y `exp`. Las cuentas nuevas son `viewer`; los permisos de `analyst`, `curator` y `admin` deben asignarse en el servidor.
+
+El token se conserva solo en memoria. Recargar o cerrar sesión exige autenticarse otra vez. Un token inválido o vencido no abre la aplicación. Opcionalmente, `VITE_ME_PATH` permite obtener un perfil autenticado si el backend implementa esa ruta; no se presume que `/auth/me` ya exista.
+
+Para trabajar con datos ilustrativos, se puede definir explícitamente `VITE_DATA_MODE=demo`. Esto cambia los datos, pero sigue exigiendo una cuenta real del backend y no permite simular identidades o elevar el rol desde el navegador.
 
 Las observaciones, coordenadas, personas, fechas, medidas y estados son ficticios. Las fotografías descargadas son referencias de especies; no evidencian ocurrencias en la región. Los cambios se guardan en IndexedDB, únicamente en este navegador. Los datos antiguos de `localStorage` se migran al guardar. El almacenamiento es limitado: el demo acepta imágenes de hasta 2 MB y muestra errores si no puede guardarlas. El modo API nunca carga los ejemplos como sustituto ante errores.
 
@@ -54,11 +58,12 @@ Edita el archivo:
 VITE_DATA_MODE=api
 VITE_API_BASE_URL=/api
 API_PROXY_TARGET=http://127.0.0.1:8000
+VITE_LOGIN_PATH=/auth/login-json
 ```
 
 Reinicia Vite. Si las rutas del backend incluyen `/api/v1`, usa `VITE_API_BASE_URL=/api/api/v1`: el proxy elimina solo el primer `/api`. En producción configura una URL HTTPS absoluta o un proxy de mismo origen en el servidor que entrega `dist/`; el proxy de Vite solo sirve para desarrollo.
 
-La documentación HTML existente solo declara un mensaje para el resultado de login. El contrato necesita un token y un perfil con rol. Las rutas de listado de ocurrencias, curaduría, usuarios y refresco permanecen deshabilitadas hasta configurarlas expresamente. El guardado completo requiere además los contratos propuestos de hallazgos, fichas y fotografías; se bloquea con un mensaje claro si no están habilitados. Consulta [INTEGRACION_FASTAPI.md](docs/INTEGRACION_FASTAPI.md) y [REGISTRO_COMPLETO.md](docs/REGISTRO_COMPLETO.md).
+El contrato de autenticación usa el JWT que devuelve la rama `Backend`. `/auth/login` es OAuth2 con formulario; para el JSON del frontend se usa `/auth/login-json`. Las rutas de listado de ocurrencias, curaduría, usuarios y refresco permanecen deshabilitadas hasta configurarlas expresamente. El guardado completo requiere además los contratos propuestos de hallazgos, fichas y fotografías; se bloquea con un mensaje claro si no están habilitados. Consulta [INTEGRACION_FASTAPI.md](docs/INTEGRACION_FASTAPI.md) y [REGISTRO_COMPLETO.md](docs/REGISTRO_COMPLETO.md).
 
 ## Estructura
 

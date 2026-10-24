@@ -42,7 +42,7 @@ El investigador responsable se toma de la cuenta autenticada. Para investigadore
 
 La demostración distingue `ownerId` (cuenta responsable) de `createdById` (cuenta que creó el registro). Editar un registro no modifica su creador original. Se conservan los responsables históricos al editar, aunque su perfil haya cambiado. «Identificado por» mantiene su significado científico de atribución de la identificación taxonómica y no determina la propiedad del registro.
 
-El acceso demo permite elegir Laura Martínez o Diego Ramírez al iniciar sesión como investigador. El selector de cuenta del encabezado permite alternarlas para comprobar vistas propias. Esta simulación no reemplaza autenticación real.
+El acceso requiere una cuenta real del backend, incluso cuando se utilizan datos ilustrativos. Se retiraron los selectores de cuenta y perfil. Laura Martínez y Diego Ramírez solo son personas de los datos demo, sin credenciales de acceso.
 
 En el primer paso del hallazgo, «Buscar especie registrada» filtra por nombre científico, común, género o familia, sin distinguir mayúsculas o acentos. «Añadir especie nueva» abre el editor completo sobre el borrador actual, comprueba duplicados y selecciona automáticamente la especie creada. Las notas, ubicación, fotografías y demás campos del borrador se conservan. Cancelar la creación de la especie devuelve al hallazgo sin descartarlo.
 
@@ -89,4 +89,4 @@ Las respuestas PUT deben devolver la ficha o hallazgo completo guardado, incluid
 
 El servidor debe determinar identidad, propiedad y permisos a partir del token; no confiar en IDs ni estados editables. Debe redactar entrevistas y contactos en las respuestas públicas. La pestaña socioecológica solo se muestra a curaduría/administración o al autor de la ficha; esto es control de interfaz y no reemplaza la autorización del servidor.
 
-Roles del ORM: `field_collector` se adapta a investigador, `viewer` y `analyst` a visitante, `curator` a curador y `admin` a administrador. Los datos de identidad se leen desde `party`.
+Roles unificados del cliente y la API: `viewer` corresponde a visitante, `analyst` a investigador, `curator` a curador y `admin` a administrador. Los datos de identidad se leen desde `party`. Los roles de cuentas demo antiguas se migran al cargar el conjunto local.

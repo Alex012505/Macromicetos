@@ -6,14 +6,14 @@ Estado: cliente preparado; backend no disponible para pruebas de extremo a extre
 
 | Método | Ruta relativa a la URL base | Interfaz | Observación |
 | --- | --- | --- | --- |
-| POST | `/auth/login` | Inicio de sesión | JSON `{email,password}`. Falta precisar respuesta con tokens/perfil. |
+| POST | `/auth/login-json` | Inicio de sesión | JSON `{email,password}`; devuelve JWT con ID, rol y expiración. |
 | POST | `/auth/register` | Registro de cuenta | `{email,password,first_name,last_name}`. El servidor fija el rol público. |
 | GET | `/taxa?search=...` | Catálogo | Lista directa o envoltura `data`, `items` o `results`. |
 | GET | `/taxa/{taxon_id}` | Ficha | Contrato TaxonRef. |
-| POST | `/taxa` | Referencia histórica de creación básica | El editor ampliado utiliza el contrato configurable de ficha completa descrito abajo. |
+| POST | `/taxa` | Creación básica de taxón | JSON plano en snake_case: `scientific_name`, `taxon_rank`, `common_name_es`, etc. El servidor genera el ID. Las fichas con entidades adicionales requieren el contrato de ficha completa. |
 | GET | `/occurrences/{occurrence_id}` | Consulta de registro por ID | Perfil con taxón, evento, ubicación y multimedia. |
 | POST | `/occurrences/{occurrence_id}` | Referencia histórica de observación básica | El nuevo editor no la usa para evitar descartar ubicación, morfología y demás campos. |
-| POST | `/multimedia/upload` | Referencia histórica de carga simple | El cliente la conserva; la interfaz ampliada usa el contrato configurable de lote para conservar créditos y permitir reintentos. |
+| POST | `/occurrences/{occurrence_id}/photos` | Añadir fotografías | Multipart con un campo `files` por archivo; devuelve una lista de multimedia, que se incorpora al hallazgo existente. Si se configura `VITE_MEDIA_BUNDLE_PATH`, se conserva el guardado completo mediante PUT. |
 
 El servidor virtual SwaggerHub que aparece en los HTML es documentación y no se usa como backend real. No se enviaron datos ni credenciales a ese servidor.
 
@@ -29,30 +29,30 @@ API_PROXY_TARGET=http://127.0.0.1:8000
 
 Para producción, sirve `dist/` y enruta `/api` al backend con un proxy real, o define una URL absoluta HTTPS. El prefijo debe acordarse una vez; los componentes no contienen URLs fijas.
 
-## 3. Autenticación pendiente de contrato
+## 3. Autenticación de los cuatro perfiles
 
-Respuesta propuesta de `/auth/login`:
+Antes de abrir cualquier vista se exige correo y contraseña. El cliente no carga el conjunto de datos hasta iniciar sesión y no ofrece selectores de identidad o rol, tampoco con datos demo.
+
+`POST /auth/login-json` recibe JSON `{email,password}`. Esta es la operación JSON existente en la rama `Backend`; `POST /auth/login` recibe un formulario OAuth2 y no se usa para enviar JSON. La ruta JSON se puede configurar mediante `VITE_LOGIN_PATH`.
+
+Respuesta actual del backend:
 
 ```json
 {
-  "access_token": "jwt-del-servidor",
-  "refresh_token": "token-opaco-opcional",
-  "token_type": "bearer",
-  "user": {
-    "user_id": "uuid",
-    "email": "persona@institucion.edu.co",
-    "first_name": "Nombre",
-    "last_name": "Apellido",
-    "role": "researcher"
-  }
+  "access_token": "jwt-firmado-por-el-servidor",
+  "token_type": "Bearer"
 }
 ```
 
-El cliente también acepta `accessToken`, `refreshToken` y `userProfile`. Roles de interfaz: `readonly_user`, `researcher`, `curator`, `admin`. Se admiten los roles del ORM: `viewer` y `analyst` se presentan como visitante, y `field_collector` como investigador. Se utiliza `party.display_name` y `user_web_id` cuando están disponibles. La actualización envía `viewer`, `field_collector`, `curator` o `admin` conforme al ENUM del ORM. Si el servidor solo devuelve un mensaje, se muestra un error de contrato y no se inicia una sesión ficticia. Si entrega token sin perfil, el cliente conserva el mínimo privilegio; opcionalmente se puede configurar `VITE_ME_PATH` para consultar el perfil.
+El JWT incluye `sub` (ID de cuenta), `role` y `exp`. El cliente lee estos datos únicamente del token recibido tras un login exitoso. El rol debe ser `viewer`, `analyst`, `curator` o `admin`; un ID ausente, un rol desconocido o un token vencido impiden abrir la sesión. Leer el JWT en el navegador no verifica su firma: FastAPI debe validar firma, expiración, identidad, rol y propiedad en cada petición protegida.
 
-Los tokens están en memoria. Recargar requiere iniciar sesión otra vez. No existe revocación remota de logout porque el contrato no define esa ruta; cerrar sesión borra los tokens del cliente. Para revocación global el backend debe añadir una operación y acordar el contrato.
+Si el login incluye un perfil (`user`, `profile` o `userProfile`), se utiliza tras comprobar que pertenece al ID autenticado y tiene un rol válido. Si se configura `VITE_ME_PATH`, se consulta ese perfil con el Bearer token y su rol es el que se muestra. No se presume que esa ruta exista: la rama inspeccionada no implementa `/auth/me`. Sin perfil, se usa el ID y rol del JWT y el correo introducido para identificar la sesión.
 
-El refresco solo se activa al definir `VITE_REFRESH_PATH`. Sigue el cuerpo `{ "refreshToken": "..." }` del diagrama de autenticación entregado. Si el equipo usa `refresh_token`, adaptar ese campo en `src/lib/http.mjs`. Un 401 dispara como máximo un refresco y un reintento; peticiones simultáneas comparten el refresco. Si falla, la sesión termina. Un 403 de una operación no intenta elevar permisos.
+El registro público envía solo correo, contraseña, nombre y apellido a `/auth/register`. El backend crea cuentas `viewer`; el formulario no permite solicitar permisos elevados. Los roles `analyst`, `curator` y `admin` deben asignarse en el servidor. Si falta el endpoint administrativo de roles, debe habilitarse en el backend; el cliente no lo simula.
+
+Los tokens se mantienen en memoria, sin almacenar contraseñas ni perfiles en `localStorage`. Recargar exige un nuevo login. Cerrar sesión, recibir HTTP 401 en una petición autenticada o llegar a `exp` limpia la cuenta, los datos y los formularios privados. Al volver a enfocar la ventana se revisa la expiración. Las respuestas de una cuenta anterior no pueden cargar datos ni cerrar la sesión de una cuenta nueva.
+
+El transporte conserva el refresco opcional mediante `VITE_REFRESH_PATH`, que sigue pendiente de implementación en el backend. La sesión de interfaz tiene como límite la expiración recibida al iniciar sesión. Un HTTP 403 se muestra como permiso denegado y no intenta elevar el rol.
 
 ## 4. Extensiones propuestas — no son rutas existentes
 

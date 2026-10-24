@@ -1,18 +1,18 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
   BookOpen, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardList,
   ExternalLink, Flower2, Globe2, Image, LayoutDashboard, Leaf,
-  LogIn, LogOut, MapPin, Menu, Microscope, Plus, Search,
+  LogOut, MapPin, Menu, Microscope, Plus, Search,
   ShieldCheck, SlidersHorizontal, Sprout, Users, X,
 } from 'lucide-react';
 import { api, config, http } from './lib/api';
-import { loadDemo, saveDemo, demoUserForRole } from './data/demo';
+import { loadDemo, saveDemo } from './data/demo';
 import { canAccessPage, canEditOccurrence, capabilitiesFor } from './lib/permissions.mjs';
 import { assignOccurrenceForSession } from './lib/record-ownership.mjs';
-import { roleNames, statusNames, type Dataset, type Occurrence, type Role, type Status, type Taxon, type User, type PendingPhoto } from './types';
+import { roleNames, statusNames, type Dataset, type Occurrence, type Status, type Taxon, type User, type PendingPhoto } from './types';
 import { Busy, Empty, Modal, Notice, Photo, StatusBadge } from './components/UI';
 import OccurrenceMap from './components/OccurrenceMap';
-import { AuthForm } from './components/Forms';
+import AuthScreen from './components/AuthScreen';
 import RecordForm from './components/RecordForm';
 import TaxonForm from './components/TaxonForm';
 import UploadForm from './components/UploadForm';
@@ -25,7 +25,6 @@ import UserManagement from './components/UserManagement';
 type Page = 'dashboard' | 'especies' | 'mapa' | 'galeria' | 'registros' | 'curaduria' | 'usuarios' | 'guia';
 const pageTitles: Record<Page, string> = { dashboard: 'Vista general', especies: 'Catálogo de especies', mapa: 'Visor cartográfico', galeria: 'Galería multimedia', registros: 'Registros de campo', curaduria: 'Curaduría', usuarios: 'Gestión de usuarios', guia: 'Guía de la plataforma' };
 const blank: Dataset = { taxa: [], occurrences: [], users: [] };
-const demoSession: User = demoUserForRole('admin');
 function currentRoute() {
   const hash = window.location.hash.replace(/^#\/?/, '').split('/');
   return { page: (hash[0] in pageTitles ? hash[0] : hash[0] === 'especie' ? 'especies' : 'dashboard') as Page,
@@ -39,25 +38,26 @@ function dateLabel(value: string) {
 export default function App() {
   const [route, setRoute] = useState(currentRoute);
   const [data, setData] = useState<Dataset>(blank);
-  const [user, setUser] = useState<User | null>(config.demo ? demoSession : null);
+  const [user, setUser] = useState<User | null>(null);
+  const datasetRequest = useRef(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
   const [query, setQuery] = useState('');
   const [mobileNav, setMobileNav] = useState(false);
-  const [modal, setModal] = useState<'auth' | 'record' | 'taxon' | 'upload' | null>(null);
+  const [modal, setModal] = useState<'record' | 'taxon' | 'upload' | null>(null);
   const [editRecord, setEditRecord] = useState<Occurrence | undefined>();
   const [editTaxon, setEditTaxon] = useState<Taxon | undefined>();
   const [uploadRecordId, setUploadRecordId] = useState('');
   const [detailRecord, setDetailRecord] = useState<Occurrence>();
   const [saving, setSaving] = useState(false);
-  const role = user?.role || 'readonly_user';
+  const role = user?.role || 'viewer';
   const { write: canWrite, curate: canCurate } = capabilitiesFor(role);
   const canEdit = (o: Occurrence) => canEditOccurrence(role, user?.id || '', o);
   const ownRecords = data.occurrences.filter(o => o.ownerId === user?.id);
   const scopeText = {
-    readonly_user: 'Consulta fichas, fotografías y observaciones para tu estudio.',
-    researcher: 'Documenta hallazgos de campo y gestiona tus propios registros.',
+    viewer: 'Consulta fichas, fotografías y observaciones para tu estudio.',
+    analyst: 'Documenta hallazgos de campo y gestiona tus propios registros.',
     curator: 'Revisa la identificación y calidad de las observaciones recibidas.',
     admin: 'Coordina registros, curaduría y permisos de la plataforma académica.',
   }[role];
@@ -70,12 +70,27 @@ export default function App() {
   function openOccurrence(o: Occurrence) { if (o.taxonId) openSpecies(o.taxonId); else setDetailRecord(o); }
   function openUpload(o?: Occurrence) { if (o && !canEdit(o)) return; setUploadRecordId(o?.id || ''); setModal('upload'); }
   function notify(message: string) { setToast(message); }
+  function endSession() {
+    datasetRequest.current++;
+    http.setTokens(); setUser(null); setData(blank); setLoading(false); setError('');
+    setModal(null); setDetailRecord(undefined); setEditRecord(undefined); setEditTaxon(undefined);
+    setUploadRecordId(''); setMobileNav(false);
+  }
   async function updateDataset(next: Dataset) { if (config.demo) await saveDemo(next); setData(next); }
   async function reload() {
-    if (config.demo) { setLoading(true); setError(''); try { setData(await loadDemo()); } catch (e) { setError((e as Error).message); } finally { setLoading(false); } return; }
+    const request = ++datasetRequest.current;
+    if (!user) { setData(blank); setLoading(false); return; }
+    if (config.demo) {
+      setLoading(true); setError('');
+      try { const demo = await loadDemo(); if (request === datasetRequest.current) setData(demo); }
+      catch (e) { if (request === datasetRequest.current) setError((e as Error).message); }
+      finally { if (request === datasetRequest.current) setLoading(false); }
+      return;
+    }
     setLoading(true); setError('');
     // Catalog is mandatory. Optional resources fail visibly, without demo fallback.
     const results = await Promise.allSettled([api.taxa(), api.occurrences(), role === 'admin' ? api.users() : Promise.resolve([])]);
+    if (request !== datasetRequest.current) return;
     const failures = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
     setData({ taxa: results[0].status === 'fulfilled' ? results[0].value : [],
       occurrences: results[1].status === 'fulfilled' ? results[1].value : [],
@@ -85,18 +100,32 @@ export default function App() {
   }
   useEffect(() => {
     const listener = () => { if (window.location.hash !== '#main-content') setRoute(currentRoute()); };
-    const expired = () => { setUser(null); setModal('auth'); setData(blank); notify('Tu sesión terminó. Inicia sesión nuevamente.'); };
+    const expired = () => { endSession(); notify('Tu sesión terminó. Inicia sesión nuevamente.'); };
     window.addEventListener('hashchange', listener);
     window.addEventListener('macromicetos-session-expired', expired);
     return () => { window.removeEventListener('hashchange', listener); window.removeEventListener('macromicetos-session-expired', expired); };
   }, []);
-  useEffect(() => { if (!config.demo) void reload(); }, [user?.id, role]);
-  useEffect(() => { if (config.demo) void reload(); }, []);
+  useEffect(() => { void reload(); return () => { datasetRequest.current++; }; }, [user?.id, role]);
+  useEffect(() => {
+    if (!user?.expiresAt) return;
+    const expiresAt = user.expiresAt;
+    let timer: ReturnType<typeof setTimeout>;
+    const checkExpiry = () => {
+      clearTimeout(timer);
+      const remaining = expiresAt - Date.now();
+      if (remaining <= 0) http.clearSession();
+      else timer = setTimeout(checkExpiry, Math.min(remaining, 2_147_483_647));
+    };
+    checkExpiry();
+    window.addEventListener('focus', checkExpiry);
+    document.addEventListener('visibilitychange', checkExpiry);
+    return () => { clearTimeout(timer); window.removeEventListener('focus', checkExpiry); document.removeEventListener('visibilitychange', checkExpiry); };
+  }, [user?.expiresAt]);
   useEffect(() => { document.title = `${route.speciesId ? 'Ficha de especie' : pageTitles[route.page]} · Macromicetos`; }, [route]);
   useEffect(() => { if (!toast) return; const timer = setTimeout(() => setToast(''), 5500); return () => clearTimeout(timer); }, [toast]);
   const visibleTaxa = useMemo(() => data.taxa.filter(t => `${t.scientificName} ${t.commonName} ${t.family}`.toLowerCase().includes(query.toLowerCase())), [data.taxa, query]);
   const selected = data.taxa.find(t => t.id === route.speciesId);
-  function newRecord() { setEditRecord(undefined); setModal(canWrite ? 'record' : 'auth'); }
+  function newRecord() { if (canWrite) { setEditRecord(undefined); setModal('record'); } }
   function editOccurrence(o: Occurrence) {
     if (!canEdit(o)) { notify('Solo puedes editar tus propios registros.'); return; }
     setEditRecord(o); setModal('record');
@@ -104,6 +133,11 @@ export default function App() {
   async function withLocalPhotos(record: Occurrence, photos: PendingPhoto[]) {
     const additions = await Promise.all(photos.map(async p => ({ ...p.metadata, id: p.id, url: await photoDataUrl(p.file) })));
     return { ...record, images: [...record.images, ...additions.map(p => p.url)], photos: [...(record.photos || []), ...additions] };
+  }
+  async function withServerPhotos(record: Occurrence, photos: PendingPhoto[]): Promise<Occurrence> {
+    const additions = await api.addPhotos(record.id, photos);
+    const merged = [...(record.photos || []).filter(p => !additions.some(added => added.id && added.id === p.id)), ...additions];
+    return { ...record, photos: merged, images: [...new Set([...record.images, ...additions.map(p => p.url).filter(Boolean)])] };
   }
   async function saveOccurrence(record: Occurrence, photos: PendingPhoto[]) {
     if (!canWrite) throw new Error('Tu rol no permite guardar registros.');
@@ -123,6 +157,7 @@ export default function App() {
     if (!canWrite || !user) throw new Error('Tu rol no permite crear especies.');
     const existing = data.taxa.find(t => t.id === taxon.id);
     if (existing && role !== 'admin' && existing.ownerId !== user.id) throw new Error('Solo puedes editar las fichas de tu autoría.');
+    if (!config.demo && existing && !config.taxonBundlePath) throw new Error('La edición de fichas requiere habilitar el contrato de ficha completa.');
     if (!existing) taxon = { ...taxon, ownerId: user.id };
     setSaving(true);
     try {
@@ -148,6 +183,7 @@ export default function App() {
     { page: 'mapa' as Page, label: 'Visor cartográfico', icon: MapPin },
     { page: 'galeria' as Page, label: 'Galería multimedia', icon: Image },
   ];
+  if (!user) return <AuthScreen message={toast} onSuccess={authenticated => { setUser(authenticated); setToast(''); }} />;
   return <div className="app-shell">
     <a className="skip-link" href="#main-content">Saltar al contenido</a>
     {mobileNav && <button className="nav-backdrop" aria-label="Cerrar navegación" onClick={() => setMobileNav(false)} />}
@@ -168,8 +204,7 @@ export default function App() {
     <div className="workspace">
       <header className="topbar"><div className="topbar-location"><button className="icon-btn mobile-menu" aria-label="Abrir navegación" onClick={() => setMobileNav(true)}><Menu size={22} /></button><span className="breadcrumb">Plataforma académica</span><span className="breadcrumb-divider">/</span><strong>{route.speciesId ? 'Ficha de especie' : pageTitles[route.page]}</strong></div>
         <div className="topbar-actions"><span className={`mode-badge ${config.demo ? 'demo' : ''}`}>{config.demo ? 'Demostración' : 'Modo API'}</span>
-          {user ? <div className="user-control"><span className="avatar">{user.name.split(' ').map(n => n[0]).slice(0, 2).join('')}</span><div className="user-label"><strong>{user.name}</strong>{config.demo ? <select aria-label="Rol de demostración" value={role} onChange={e => { setUser(data.users.find(account => account.role === e.target.value) || demoUserForRole(e.target.value as Role)); navigate('dashboard'); }}>{Object.entries(roleNames).map(([key, label]) => <option key={key} value={key}>{label} · demo</option>)}</select> : <span>{roleNames[role]}</span>}{config.demo && role === 'researcher' && <select aria-label="Cuenta de investigador" value={user.id} onChange={e => { const account = data.users.find(u => u.id === e.target.value && u.role === 'researcher'); if (account) { setUser(account); navigate('dashboard'); } }}>{data.users.filter(u => u.role === 'researcher').map(account => <option key={account.id} value={account.id}>{account.name}</option>)}</select>}</div><button className="icon-btn" title="Cerrar sesión" aria-label="Cerrar sesión" onClick={() => { http.setTokens(); setUser(null); if (!config.demo) setData(blank); navigate('dashboard'); }}><LogOut size={17} /></button></div>
-          : <button className="btn small" onClick={() => setModal('auth')}><LogIn size={16} />Iniciar sesión</button>}
+          <div className="user-control"><span className="avatar">{user.name.split(" ").map(n => n[0]).slice(0, 2).join("")}</span><div className="user-label"><strong>{user.name}</strong><span>{roleNames[role]}</span></div><button className="icon-btn" title="Cerrar sesión" aria-label="Cerrar sesión" onClick={() => { endSession(); navigate("dashboard"); }}><LogOut size={17} /></button></div>
         </div>
       </header>
       <main id="main-content" tabIndex={-1}>
@@ -178,7 +213,7 @@ export default function App() {
           {route.page === 'dashboard' && <>
             <div className="page-heading"><div><span className="eyebrow">REGISTRO ACADÉMICO · {roleNames[role].toUpperCase()}</span><h1>Registro de macromicetos<span className="heading-dot">.</span></h1><p>{scopeText}</p></div>{canWrite ? <button className="btn primary" onClick={newRecord}><Plus size={18} />Nuevo registro</button> : canCurate ? <button className="btn primary" onClick={() => navigate('curaduria')}><ShieldCheck size={18} />Revisar observaciones</button> : <button className="btn primary" onClick={() => navigate('especies')}><Search size={18} />Consultar catálogo</button>}</div>
             <section className="hero-banner"><div className="hero-photo" /><div className="hero-copy"><span className="hero-kicker"><span /> BIODIVERSIDAD · ORINOQUÍA COLOMBIANA</span><h2>Observaciones de campo.<br />Conocimiento científico.</h2><p>Consulta el catálogo taxonómico y la distribución de los registros.<br />Un espacio académico para documentar la diversidad de macromicetos.</p><button className="btn hero-btn" onClick={() => navigate('especies')}>Consultar especies <Flower2 size={17} /></button></div><span className="hero-caption"><em>Pleurotus ostreatus</em> · fotografía de referencia</span></section>
-            <div className="stats-grid"><Metric label="Especies en el catálogo" value={data.taxa.length} detail="Diversidad documentada" icon={Flower2} color="green" /><Metric label={role === 'researcher' ? 'Mis registros de campo' : 'Registros de campo'} value={role === 'researcher' ? ownRecords.length : data.occurrences.length} detail={role === 'researcher' ? 'Observaciones de mi autoría' : 'Observaciones disponibles'} icon={ClipboardList} color="blue" />{canCurate ? <Metric label="Pendientes de curaduría" value={pending} detail="Registros por revisar" icon={ShieldCheck} color="amber" /> : role === 'researcher' ? <Metric label="Mis registros en revisión" value={ownRecords.filter(o => o.status === 'pending').length} detail="Pendientes de decisión" icon={ShieldCheck} color="amber" /> : <Metric label="Fotografías disponibles" value={data.occurrences.reduce((n, o) => n + o.images.length, 0)} detail="Multimedia asociada" icon={Image} color="amber" />}<Metric label="Departamentos" value={new Set(data.occurrences.map(o => o.department).filter(Boolean)).size} detail="Cobertura del territorio" icon={MapPin} color="purple" /></div>
+            <div className="stats-grid"><Metric label="Especies en el catálogo" value={data.taxa.length} detail="Diversidad documentada" icon={Flower2} color="green" /><Metric label={role === 'analyst' ? 'Mis registros de campo' : 'Registros de campo'} value={role === 'analyst' ? ownRecords.length : data.occurrences.length} detail={role === 'analyst' ? 'Observaciones de mi autoría' : 'Observaciones disponibles'} icon={ClipboardList} color="blue" />{canCurate ? <Metric label="Pendientes de curaduría" value={pending} detail="Registros por revisar" icon={ShieldCheck} color="amber" /> : role === 'analyst' ? <Metric label="Mis registros en revisión" value={ownRecords.filter(o => o.status === 'pending').length} detail="Pendientes de decisión" icon={ShieldCheck} color="amber" /> : <Metric label="Fotografías disponibles" value={data.occurrences.reduce((n, o) => n + o.images.length, 0)} detail="Multimedia asociada" icon={Image} color="amber" />}<Metric label="Departamentos" value={new Set(data.occurrences.map(o => o.department).filter(Boolean)).size} detail="Cobertura del territorio" icon={MapPin} color="purple" /></div>
             <div className="dashboard-grid"><section className="panel recent-panel"><div className="section-head"><div><h2>Últimas observaciones</h2><p>Observaciones de campo más recientes.</p></div><button className="text-button" onClick={() => navigate(canWrite ? 'registros' : 'especies')}>Ver todos <ChevronRight size={15} /></button></div>
               <RecordTable records={data.occurrences.slice(0, 5)} taxa={data.taxa} onSelect={openOccurrence} />
               <div className="panel-foot"><Leaf size={14} /><span>{config.demo ? 'Datos ilustrativos para revisar la experiencia de navegación.' : 'Información obtenida de la API del proyecto.'}</span></div>
@@ -189,14 +224,14 @@ export default function App() {
           {route.page === 'especies' && <Catalog taxa={visibleTaxa} records={data.occurrences} query={query} setQuery={setQuery} onSelect={openSpecies} onCreate={canWrite ? () => { setEditTaxon(undefined); setModal('taxon'); } : undefined} />}
           {route.page === 'mapa' && <MapView data={data} onSelect={openOccurrence} />}
           {route.page === 'galeria' && <Gallery data={data} onSelect={openOccurrence} onUpload={canWrite ? () => openUpload() : undefined} />}
-          {route.page === 'registros' && <RecordsView ownOnly={role === 'researcher'} data={{ ...data, occurrences: role === 'researcher' ? ownRecords : data.occurrences }} onSelect={editOccurrence} onCreate={newRecord} onFetched={o => { if (!data.occurrences.some(r => r.id === o.id)) setData({ ...data, occurrences: [o, ...data.occurrences] }); }} />}
+          {route.page === 'registros' && <RecordsView ownOnly={role === 'analyst'} data={{ ...data, occurrences: role === 'analyst' ? ownRecords : data.occurrences }} onSelect={editOccurrence} onCreate={newRecord} onFetched={o => { if (!data.occurrences.some(r => r.id === o.id)) setData({ ...data, occurrences: [o, ...data.occurrences] }); }} />}
           {route.page === 'curaduria' && <Curation data={data} onReview={review} onSpecies={openSpecies} />}
           {route.page === 'usuarios' && <UserManagement users={data.users} onSave={async (updated) => {
             if (role !== 'admin') throw new Error('Solo el administrador puede gestionar roles.');
-            if (config.demo) await updateDataset({ ...data, users: data.users.map(u => u.id === updated.id ? updated : u) });
-            else { await api.updateUserRole(updated.id, updated.role); await reload(); }
-            if (user?.id === updated.id) setUser(updated);
-            notify(config.demo ? 'Rol actualizado en la demostración.' : 'Rol enviado al servidor.');
+            if (config.demo) throw new Error('Los perfiles de los datos de demostración son de solo lectura.');
+            await api.updateUserRole(updated.id, updated.role);
+            if (user.id === updated.id) { endSession(); notify('Tu perfil cambió. Inicia sesión nuevamente para actualizar tus permisos.'); return; }
+            await reload(); notify('Rol enviado al servidor.');
           }} />}
           {route.page === 'guia' && <Guide />}
         </>}
@@ -204,7 +239,6 @@ export default function App() {
       </main>
     </div>
     {toast && <div className="toast" role="status"><Check size={18} /><span>{toast}</span><button className="icon-btn" aria-label="Cerrar notificación" onClick={() => setToast('')}><X size={16} /></button></div>}
-    {modal === 'auth' && <Modal title="Acceso a la plataforma académica" onClose={() => setModal(null)}><AuthForm demoAccounts={data.users} onSuccess={u => { setUser(u); setModal(null); notify(config.demo ? 'Sesión de demostración iniciada.' : 'Sesión iniciada.'); }} /></Modal>}
     {modal === 'record' && user && <Modal title={editRecord ? 'Editar registro de campo' : 'Registrar un nuevo hallazgo'} wide onClose={() => { if (!saving) setModal(null); }}><RecordForm taxa={data.taxa} initial={editRecord} user={user} users={data.users} onSave={saveOccurrence} onCreateTaxon={persistTaxon} onCancel={() => setModal(null)} /></Modal>}
     {modal === 'taxon' && <Modal title={editTaxon ? 'Editar ficha taxonómica' : 'Añadir una especie al catálogo'} wide onClose={() => { if (!saving) setModal(null); }}><TaxonForm existing={data.taxa} initial={editTaxon} ownerId={user?.id || ''} onSave={saveTaxon} onCancel={() => setModal(null)} /></Modal>}
     {modal === 'upload' && <Modal title="Añadir fotografías al hallazgo" wide onClose={() => { if (!saving) setModal(null); }}><UploadForm records={data.occurrences.filter(canEdit)} taxa={data.taxa} initialId={uploadRecordId} photographer={user?.name || ''} onDone={async (recordId, photos) => {
@@ -212,7 +246,7 @@ export default function App() {
       if (!record || !canEdit(record)) throw new Error('No tienes permiso para añadir fotos a este hallazgo.');
       setSaving(true);
       try {
-        const updated = config.demo ? await withLocalPhotos(record, photos) : await api.addPhotos(recordId, photos);
+        const updated = config.demo ? await withLocalPhotos(record, photos) : await withServerPhotos(record, photos);
         await updateDataset({ ...data, occurrences: data.occurrences.map(o => o.id === recordId ? updated : o) });
         setModal(null); notify('Fotografías añadidas al hallazgo.');
       } finally { setSaving(false); }

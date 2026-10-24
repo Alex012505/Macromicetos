@@ -19,8 +19,8 @@ export default function RecordForm({ taxa, initial, user, users, onSave, onCreat
   const [eventId] = useState(() => initial?.eventId || crypto.randomUUID());
   const [locationId] = useState(() => initial?.locationId || crypto.randomUUID());
   const [responsibleId, setResponsibleId] = useState(initial?.ownerId || user.id);
-  const owners: User[] = user.role === 'admin' ? [user, ...users.filter(u => u.role === 'researcher' && u.id !== user.id)] : [user];
-  if (user.role === 'admin' && initial?.ownerId && !owners.some(u => u.id === initial.ownerId)) owners.push(users.find(u => u.id === initial.ownerId) || { id: initial.ownerId, name: initial.recordedBy || initial.author || 'Responsable anterior', email: '', role: 'readonly_user' });
+  const owners: User[] = user.role === 'admin' ? [user, ...users.filter(u => u.role === 'analyst' && u.id !== user.id)] : [user];
+  if (user.role === 'admin' && initial?.ownerId && !owners.some(u => u.id === initial.ownerId)) owners.push(users.find(u => u.id === initial.ownerId) || { id: initial.ownerId, name: initial.recordedBy || initial.author || 'Responsable anterior', email: '', role: 'viewer' });
   const responsible = user.role === 'admin' ? owners.find(u => u.id === responsibleId) : user;
   const [photos, setPhotos] = useState<PendingPhoto[]>([]);
   const [photoBusy, setPhotoBusy] = useState(false);

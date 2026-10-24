@@ -7,11 +7,11 @@ test('sends JSON, Bearer token and correctly joins the API prefix', async () => 
   let call;
   const client = createHttpClient({ baseUrl: 'https://example.org/api/v1/', fetchImpl: async (...args) => { call = args; return json({ saved: true }); } });
   client.setTokens('session-token');
-  assert.deepEqual(await client.request('/taxa', { method: 'POST', body: { scientificName: 'Test species' } }), { saved: true });
+  assert.deepEqual(await client.request('/taxa', { method: 'POST', body: { scientific_name: 'Test species', taxon_rank: 'species' } }), { saved: true });
   assert.equal(call[0], 'https://example.org/api/v1/taxa');
   assert.equal(call[1].headers.get('Authorization'), 'Bearer session-token');
   assert.equal(call[1].headers.get('Content-Type'), 'application/json');
-  assert.deepEqual(JSON.parse(call[1].body), { scientificName: 'Test species' });
+  assert.deepEqual(JSON.parse(call[1].body), { scientific_name: 'Test species', taxon_rank: 'species' });
 });
 test('public login never receives a stale Bearer token', async () => {
   const client = createHttpClient({ baseUrl: '/api', fetchImpl: async (url, opts) => { assert.equal(opts.headers.has('Authorization'), false); return json({ ok: true }); } });
@@ -22,9 +22,9 @@ test('FastAPI validation errors retain useful field messages', async () => {
   await assert.rejects(client.request('/occurrences/one'), error => error instanceof ApiError && error.status === 422 && error.message.includes('event_id: Field required'));
 });
 test('uploads preserve FormData and let the browser set its multipart boundary', async () => {
-  const body = new FormData(); body.append('file', new Blob(['image']), 'photo.jpg');
+  const body = new FormData(); body.append('files', new Blob(['image']), 'photo.jpg');
   const client = createHttpClient({ baseUrl: '/api', fetchImpl: async (url, opts) => { assert.equal(opts.body, body); assert.equal(opts.headers.has('Content-Type'), false); return json({ uploaded: true }); } });
-  await client.request('/multimedia/upload', { method: 'POST', body });
+  await client.request('/occurrences/one/photos', { method: 'POST', body });
 });
 test('network failures surface as errors, never as successful demo data', async () => {
   const client = createHttpClient({ baseUrl: '/api', fetchImpl: async () => { throw new TypeError('offline'); } });
@@ -57,6 +57,36 @@ test('unsuccessful refresh ends the session and does not loop', async () => {
   const client = createHttpClient({ baseUrl: '/api', refreshPath: '/auth/refresh', onSessionExpired: () => expired++, fetchImpl: async () => { calls++; return json({ detail: 'expired' }, 401); } });
   client.setTokens('old', 'refresh'); await assert.rejects(client.request('/taxa')); assert.equal(calls, 2); assert.equal(expired, 1);
 });
+test('an old account request cannot expose its data or expire a new account session', async () => {
+  for (const status of [200, 401]) {
+    let finish; let expired = 0;
+    const client = createHttpClient({ baseUrl: '/api', onSessionExpired: () => expired++, fetchImpl: () => new Promise(resolve => { finish = resolve; }) });
+    client.setTokens('old-account');
+    const pending = client.request('/users');
+    client.setTokens(); client.setTokens('new-account');
+    finish(json({ private: 'old account data' }, status));
+    await assert.rejects(pending, /sesión cambió/);
+    assert.equal(expired, 0);
+  }
+});
+
+test('a refresh that finishes after an account switch cannot replace the new account token', async () => {
+  let finishRefresh; let startedRefresh; let expired = 0;
+  const started = new Promise(resolve => { startedRefresh = resolve; });
+  const client = createHttpClient({ baseUrl: '/api', refreshPath: '/auth/refresh', onSessionExpired: () => expired++, fetchImpl: async (url, opts) => {
+    if (url.endsWith('/auth/refresh')) { startedRefresh(); return new Promise(resolve => { finishRefresh = resolve; }); }
+    return opts.headers.get('Authorization') === 'Bearer new-account' ? json({ current: true }) : json({ detail: 'expired' }, 401);
+  } });
+  client.setTokens('old-account', 'refresh-old');
+  const pending = client.request('/users');
+  await started;
+  client.setTokens('new-account');
+  finishRefresh(json({ accessToken: 'refreshed-old-account' }));
+  await assert.rejects(pending, /sesión cambió/);
+  assert.equal(expired, 0);
+  assert.deepEqual(await client.request('/users'), { current: true });
+});
+
 test('timeout aborts the outstanding network request', async () => {
   const client = createHttpClient({ baseUrl: '/api', timeoutMs: 10, fetchImpl: (url, opts) => new Promise((resolve, reject) => opts.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))) });
   await assert.rejects(client.request('/taxa'), /tardó demasiado/);
