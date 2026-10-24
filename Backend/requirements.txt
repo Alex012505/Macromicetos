@@ -1,0 +1,13 @@
+# =====================================================================
+# API FRAMEWORK & SERVIDOR DE APLICACIÓN
+# =====================================================================
+fastapi>=0.109.0,<1.0.0
+uvicorn[standard]>=0.27.0,<1.0.0
+python-multipart>=0.0.6                  # Soporte para subida de fotos / archivos (multipart/form-data)
+
+# =====================================================================
+# BASE DE DATOS Y PERSISTENCIA (ORM & POSTGRESQL / POSTGIS)
+# =====================================================================
+SQLAlchemy>=2.0.0,<3.0.0                 # Mapeo objeto-relacional (ORM 2.0 con Mapped Columns)
+psycopg2-binary>=2.9.9,<3.0.0            # Driver nativo de conexión Python -> PostgreSQL
+geoalchemy2>=0.14.0                      # Soporte para tipos espaciales GEOGRAPHY / PostGIS
