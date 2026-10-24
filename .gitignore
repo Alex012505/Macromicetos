@@ -40,3 +40,7 @@ Desktop.ini
 # Paquetes locales de entrega; las evidencias de docs sí se versionan
 entregables/
 /tmp/
+
+# Local database, signing key and uploaded scientific photographs
+/Backend/data/
+/Backend/.test-data/

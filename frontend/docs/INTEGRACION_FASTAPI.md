@@ -1,156 +1,64 @@
-# Contrato de integración frontend ↔ FastAPI
+# Contrato integrado frontend ↔ FastAPI
 
-Estado: cliente preparado; backend no disponible para pruebas de extremo a extremo. Las rutas se derivan de los HTML originales en `docs/operations/DefaultApi.html` y `docs/models/`. Los documentos de arquitectura se usan como contexto, pero las rutas concretas de esta entrega corresponden al contrato de Macromicetos; no se mezclan con los servicios de salas y streaming de otros diagramas.
+Los contratos de los formularios están implementados en `Backend/src/routers/application.py` y `Backend/src/services/application.py`. Ya no es necesario definir endpoints pendientes para usar el aplicativo local.
 
-## 1. Referencia original de rutas
+## Configuración
 
-| Método | Ruta relativa a la URL base | Interfaz | Observación |
-| --- | --- | --- | --- |
-| POST | `/auth/login-json` | Inicio de sesión | JSON `{email,password}`; devuelve JWT con ID, rol y expiración. |
-| POST | `/auth/register` | Registro de cuenta | `{email,password,first_name,last_name}`. El servidor fija el rol público. |
-| GET | `/taxa?search=...` | Catálogo | Lista directa o envoltura `data`, `items` o `results`. |
-| GET | `/taxa/{taxon_id}` | Ficha | Contrato TaxonRef. |
-| POST | `/taxa` | Creación básica de taxón | JSON plano en snake_case: `scientific_name`, `taxon_rank`, `common_name_es`, etc. El servidor genera el ID. Las fichas con entidades adicionales requieren el contrato de ficha completa. |
-| GET | `/occurrences/{occurrence_id}` | Consulta de registro por ID | Perfil con taxón, evento, ubicación y multimedia. |
-| POST | `/occurrences/{occurrence_id}` | Referencia histórica de observación básica | El nuevo editor no la usa para evitar descartar ubicación, morfología y demás campos. |
-| POST | `/occurrences/{occurrence_id}/photos` | Añadir fotografías | Multipart con un campo `files` por archivo; devuelve una lista de multimedia, que se incorpora al hallazgo existente. Si se configura `VITE_MEDIA_BUNDLE_PATH`, se conserva el guardado completo mediante PUT. |
+Sin `frontend/.env`, el cliente usa `/api`; Vite reenvía las peticiones a `http://127.0.0.1:8000`. El backend sí requiere `Backend/.env` con su conexión PostgreSQL y clave JWT. Las rutas predeterminadas coinciden con el backend incluido:
 
-El servidor virtual SwaggerHub que aparece en los HTML es documentación y no se usa como backend real. No se enviaron datos ni credenciales a ese servidor.
+| Variable | Valor |
+| --- | --- |
+| `VITE_LOGIN_PATH` | `/auth/login-json` |
+| `VITE_ME_PATH` | `/auth/me` |
+| `VITE_OCCURRENCES_LIST_PATH` | `/occurrences` |
+| `VITE_CURATE_PATH` | `/occurrences/{id}/curation` |
+| `VITE_USERS_PATH` | `/users` |
+| `VITE_USER_UPDATE_PATH` | `/users/{id}` |
+| `VITE_RECORD_BUNDLE_PATH` | `/record-bundles/{id}` |
+| `VITE_TAXON_BUNDLE_PATH` | `/taxon-bundles/{id}` |
+| `VITE_MEDIA_BUNDLE_PATH` | `/occurrences/{id}/media-bundle` |
 
-## 2. Configuración local
+Si conservas un `.env` antiguo con estos valores vacíos, actualízalo a partir de `.env.example`. `VITE_REFRESH_PATH` permanece vacío: no hay endpoint de renovación y la sesión termina al expirar.
 
-```dotenv
-VITE_DATA_MODE=api
-VITE_API_BASE_URL=/api
-API_PROXY_TARGET=http://127.0.0.1:8000
+## Autenticación y autorización
+
+`POST /auth/login-json` recibe `{email,password}` y devuelve `access_token`, `token_type` y `user`. El cliente consulta además `GET /auth/me` con el Bearer token. El backend valida firma, expiración y rol vigente. Cambiar el rol invalida los tokens anteriores de la cuenta.
+
+No hay selectores de identidad ni roles simulados. El registro público crea `viewer`; solo administración puede asignar `analyst`, `curator` o `admin`. La API impide retirar el último administrador. Las contraseñas se guardan con Argon2 y los tokens del navegador están únicamente en memoria.
+
+Una cuenta `analyst` no puede asignar otra persona como propietaria: el servidor toma su identidad autenticada, incluso si se manipula el payload. `admin` puede asignar un investigador válido. `created_by_id` permanece separado del propietario.
+
+## Fichas y hallazgos completos
+
+Los adaptadores en `src/lib/record-contract.mjs` producen snake_case. Las fichas usan PUT JSON con `taxon`, `morphology`, `sources`, `knowledge` y `participants`. Los hallazgos usan PUT multipart: `payload` contiene `owner_id`, `location`, `event`, `occurrence`, `morphology`, `measurements`, `participants` y `multimedia`.
+
+Se conservan IDs estables durante reintentos. El backend guarda las entidades y las colecciones en una transacción. Una edición vuelve a poner el hallazgo en revisión; repetir el mismo PUT sin cambios no duplica fotos ni entidades.
+
+La persistencia utiliza los modelos científicos originales y una tabla adicional `application_state` para propiedad y colecciones que no estaban representadas en el ORM original. Fuentes, entrevistas, medidas libres, participantes y créditos se conservan sin pérdida en esa tabla. Las entrevistas y los correos se omiten para perfiles sin autorización.
+
+Los GET de fichas y hallazgos devuelven las colecciones completas autorizadas. El evento contiene `location`, y el hallazgo contiene `multimedia`, `morphology`, `measurements`, `owner_id`, `created_by_id`, `status` y `review_note`. El frontend calcula mapas, filtros, métricas y exportaciones a partir de estos datos.
+
+## Fotografías
+
+La carga completa envía un archivo `file_<media_id>` por entrada de `multimedia`. El endpoint `PUT /occurrences/{id}/media-bundle` conserva metadatos y créditos. También existe `POST /occurrences/{id}/photos` para carga simple mediante campos `files`; no tiene el antiguo prefijo `/multimedia`.
+
+Se admiten JPG, PNG y WebP reales, 10 MB por archivo, hasta 10 por lote. El backend comprueba el contenido con Pillow, asigna rutas UUID seguras y limpia los archivos nuevos si falla la operación. No usa el nombre suministrado como ruta. La respuesta incluye `source_url`, no rutas del sistema de archivos. La galería y el PDF utilizan esa URL. Las fotos del catálogo se sirven públicamente; los datos sensibles de entrevistas no se publican con ellas.
+
+## Curaduría
+
+`PATCH /occurrences/{id}/curation` recibe `{status,review_note}`. `status` es `verified` o `rejected`; un rechazo exige una explicación de al menos diez caracteres. Solo `curator` y `admin` pueden decidir. Se registra el historial en `curaduria.curation_decision`.
+
+## Ejecución y comprobación
+
+Desde la raíz:
+
+```powershell
+node scripts/dev.mjs
+npm --prefix frontend run test:integration
 ```
 
-`/api/taxa` en el navegador se convierte en `http://127.0.0.1:8000/taxa`. Para un backend con prefijo `/api/v1`, define `VITE_API_BASE_URL=/api/api/v1`. Todas las variables `VITE_*` son públicas en la compilación; no incluyas secretos. Reinicia el servidor después de editar `.env`, y recompila si cambia la configuración de producción. [Referencia oficial de Vite](https://vite.dev/guide/env-and-mode.html).
+El segundo comando utiliza una base y cuentas desechables, y prueba el cliente TypeScript real contra FastAPI por HTTP. No necesita un backend previamente iniciado ni credenciales reales.
 
-Para producción, sirve `dist/` y enruta `/api` al backend con un proxy real, o define una URL absoluta HTTPS. El prefijo debe acordarse una vez; los componentes no contienen URLs fijas.
+Para ejecutar las pruebas sobre PostgreSQL real usa `.\Backend\.venv\Scripts\python.exe Backend/tests/check_postgres.py`: crea dos bases desechables independientes y prueba el backend y el cliente real sin modificar la base del aplicativo. Verificado localmente sobre PostgreSQL 18.
 
-## 3. Autenticación de los cuatro perfiles
-
-Antes de abrir cualquier vista se exige correo y contraseña. El cliente no carga el conjunto de datos hasta iniciar sesión y no ofrece selectores de identidad o rol, tampoco con datos demo.
-
-`POST /auth/login-json` recibe JSON `{email,password}`. Esta es la operación JSON existente en la rama `Backend`; `POST /auth/login` recibe un formulario OAuth2 y no se usa para enviar JSON. La ruta JSON se puede configurar mediante `VITE_LOGIN_PATH`.
-
-Respuesta actual del backend:
-
-```json
-{
-  "access_token": "jwt-firmado-por-el-servidor",
-  "token_type": "Bearer"
-}
-```
-
-El JWT incluye `sub` (ID de cuenta), `role` y `exp`. El cliente lee estos datos únicamente del token recibido tras un login exitoso. El rol debe ser `viewer`, `analyst`, `curator` o `admin`; un ID ausente, un rol desconocido o un token vencido impiden abrir la sesión. Leer el JWT en el navegador no verifica su firma: FastAPI debe validar firma, expiración, identidad, rol y propiedad en cada petición protegida.
-
-Si el login incluye un perfil (`user`, `profile` o `userProfile`), se utiliza tras comprobar que pertenece al ID autenticado y tiene un rol válido. Si se configura `VITE_ME_PATH`, se consulta ese perfil con el Bearer token y su rol es el que se muestra. No se presume que esa ruta exista: la rama inspeccionada no implementa `/auth/me`. Sin perfil, se usa el ID y rol del JWT y el correo introducido para identificar la sesión.
-
-El registro público envía solo correo, contraseña, nombre y apellido a `/auth/register`. El backend crea cuentas `viewer`; el formulario no permite solicitar permisos elevados. Los roles `analyst`, `curator` y `admin` deben asignarse en el servidor. Si falta el endpoint administrativo de roles, debe habilitarse en el backend; el cliente no lo simula.
-
-Los tokens se mantienen en memoria, sin almacenar contraseñas ni perfiles en `localStorage`. Recargar exige un nuevo login. Cerrar sesión, recibir HTTP 401 en una petición autenticada o llegar a `exp` limpia la cuenta, los datos y los formularios privados. Al volver a enfocar la ventana se revisa la expiración. Las respuestas de una cuenta anterior no pueden cargar datos ni cerrar la sesión de una cuenta nueva.
-
-El transporte conserva el refresco opcional mediante `VITE_REFRESH_PATH`, que sigue pendiente de implementación en el backend. La sesión de interfaz tiene como límite la expiración recibida al iniciar sesión. Un HTTP 403 se muestra como permiso denegado y no intenta elevar el rol.
-
-## 4. Extensiones propuestas — no son rutas existentes
-
-Las siguientes variables están vacías en `.env.example`. No se solicita ninguna de estas rutas hasta configurarla. La propuesta sirve para coordinación con opción 1.
-
-| Variable | Ruta sugerida | Contrato propuesto |
-| --- | --- | --- |
-| `VITE_OCCURRENCES_LIST_PATH` | `/occurrences` | GET lista de perfiles con coordenadas y estado. |
-| `VITE_CURATE_PATH` | `/occurrences/{id}/curation` | PATCH `{status,review_note}`, exclusivo curador/admin. |
-| `VITE_USERS_PATH` | `/users` | GET lista de perfiles, exclusivo admin. |
-| `VITE_USER_UPDATE_PATH` | `/users/{id}` | PATCH `{role}`, exclusivo admin; conservar al menos un administrador. |
-| `VITE_REFRESH_PATH` | `/auth/refresh` | POST `{refreshToken}` → token nuevo. |
-| `VITE_ME_PATH` | `/auth/me` | GET perfil autenticado. |
-
-Lista de ocurrencias sugerida:
-
-```json
-{
-  "items": [{
-    "occurrence_id": "uuid",
-    "taxon_id": "uuid",
-    "event_id": "uuid",
-    "identified_by": "Nombre del investigador",
-    "date_identified": "2026-10-03",
-    "substrate": "Madera muerta",
-    "occurrence_remarks": "Notas de campo",
-    "status": "pending",
-    "event": {
-      "event_id": "uuid",
-      "event_date": "2026-10-03",
-      "location": {
-        "state_province": "Meta",
-        "locality": "Sitio de muestreo",
-        "decimal_latitude": 4.15,
-        "decimal_longitude": -73.64,
-        "habitat": "Bosque de galería"
-      }
-    },
-    "multimedia": [{
-      "media_id": "uuid",
-      "source_url": "https://almacenamiento-del-proyecto.example/foto.jpg",
-      "photo_type": "habitus",
-      "license": "licencia-del-registro"
-    }],
-    "measurements": [{
-      "measurement_type": "diametro_sombrero",
-      "measurement_value": "5",
-      "measurement_unit": "cm"
-    }]
-  }]
-}
-```
-
-Estados propuestos: `pending`, `verified`, `rejected`. La documentación original no declara un campo de curaduría. Su ausencia se muestra como **Sin estado**, nunca como verificado. El frontend adapta `approved` a `verified` si la API usa ese término.
-
-TaxonRef usa `taxonID`, `scientificName`, `commonName_es`, `kingdom`, `phylum`, `class`, `order`, `family`, `genus`, `species`, `taxonRemarks`. La respuesta taxonómica anidada de una ocurrencia usa algunos nombres diferentes (`taxon_id`, `scientific_name`, `common_name_es`): el adaptador admite esos alias. Las fotografías usan `source_url`, conforme al modelo multimedia original.
-
-## 5. Eventos y geografía
-
-`OccurrenceInput` de la referencia original requiere un evento existente y no cubre el registro ampliado. La interfaz de campo ahora recoge ubicación, evento, ocurrencia, participantes, rasgos, medidas y fotos. En modo API solo guarda mediante `VITE_RECORD_BUNDLE_PATH`; si falta, muestra un error y conserva el formulario. Los UUID del borrador y de las fotos son estables durante los reintentos. El backend determina identidad, permisos y estado inicial.
-
-Las tres operaciones propuestas, sus cuerpos, respuestas y semántica transaccional se describen en [REGISTRO_COMPLETO.md](REGISTRO_COMPLETO.md). El formulario completo funciona en demostración con IndexedDB. La obtención de coordenadas depende del permiso del navegador y de HTTPS/localhost; mapa y coordenadas manuales permanecen como alternativas.
-
-## 6. CORS y errores
-
-Con el proxy Vite, las peticiones del navegador mantienen el mismo origen en desarrollo. Si se utiliza una URL absoluta del backend, habilitar los orígenes concretos del frontend mediante CORSMiddleware. Ejemplo para el equipo backend:
-
-```python
-from fastapi.middleware.cors import CORSMiddleware
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
-    allow_credentials=False,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "Accept"],
-)
-```
-
-El ejemplo corresponde a tokens Bearer; si se adopta autenticación por cookie, revisar credenciales y CSRF como parte de ese contrato. Añadir el origen HTTPS de producción cuando exista. [Documentación oficial de FastAPI sobre CORS](https://fastapi.tiangolo.com/tutorial/cors/).
-
-El cliente muestra mensajes del backend (`detail`, `error`, `message`), incluyendo validaciones FastAPI 422. Mantiene timeout de 15 segundos, soporta cancelación y rechaza respuestas HTML/JSON mal formado. Las cargas FormData dejan que el navegador genere el boundary multipart. No se sustituyen errores reales por datos de demostración.
-
-## 7. Validación cuando exista FastAPI
-
-1. Configurar la URL base y activar modo API.
-2. Verificar GET `/taxa`, un taxón por ID y búsqueda desde el contrato del servidor.
-3. Confirmar login con token, perfil y rol; registro público sin elección de privilegio.
-4. Usar IDs reales de evento/taxón para POST de ocurrencia; confirmar su consulta posterior.
-5. Cargar una fotografía y comprobar `source_url` en el perfil.
-6. Configurar las extensiones acordadas y comprobar mapa, lista, curaduría y usuarios.
-7. Probar 401, 403, 422, servidor no disponible y timeout.
-8. Confirmar RBAC en el backend, además del control de navegación de la interfaz.
-
-Estas verificaciones de extremo a extremo permanecen pendientes; las pruebas actuales del transporte usan respuestas simuladas.
-
-## 8. Propiedad y vistas por perfil
-
-Consulta `PERFILES_Y_VISTAS.md`. Para delimitar la edición del investigador, la API debe incluir un identificador de propietario en cada ocurrencia: `owner_id`, `created_by_id` o `user_id`. El frontend utiliza ese dato y el ID del usuario autenticado; no convierte `identified_by` en un permiso. El backend asigna la propiedad al crear el registro y verifica propiedad/rol en edición y carga multimedia.
-
-El administrador tiene gestión de perfiles. Su operación de actualización requiere un contrato propio, aún propuesto, configurado con `VITE_USER_UPDATE_PATH`. El registro público siempre crea una cuenta de menor privilegio.
+En producción despliega FastAPI por separado y configura `DATABASE_URL`, `SECRET_KEY`, `CORS_ORIGINS` y la URL HTTPS pública del frontend. Consulta [Backend/README.md](../../Backend/README.md). El ORM actual usa coordenadas numéricas y no instala PostGIS ni las vistas o triggers de un esquema SQL externo.

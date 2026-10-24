@@ -6,12 +6,14 @@ Interfaz de investigación de macromicetos de la Orinoquía colombiana. React, T
 
 Requisito: Node.js 20.18 o superior. Validado con Node 20.18.0.
 
+El aplicativo completo requiere también el backend y PostgreSQL configurados según el [README principal](../README.md). Para iniciar ambos servicios desde la raíz usa `node scripts/dev.mjs`. Los siguientes comandos arrancan solo la interfaz y se ejecutan dentro de `frontend/`.
+
 ```powershell
 npm ci
 npm run dev
 ```
 
-Dirección: `http://127.0.0.1:5173/`. El servidor utiliza un puerto fijo; si está ocupado, detén la instancia anterior antes de iniciar otra.
+Dirección: `http://127.0.0.1:5173/Macromicetos/`. El servidor utiliza un puerto fijo; si está ocupado, detén la instancia anterior antes de iniciar otra.
 
 ```powershell
 npm run build
@@ -40,7 +42,7 @@ npm run preview
 
 Sin `.env`, la aplicación usa la API real y muestra primero el formulario de acceso. Todos los perfiles, incluido `viewer`, deben autenticarse. El login envía JSON a `/auth/login-json`, la ruta existente en la rama `Backend`; el servidor verifica la contraseña y devuelve un JWT con `sub`, `role` y `exp`. Las cuentas nuevas son `viewer`; los permisos de `analyst`, `curator` y `admin` deben asignarse en el servidor.
 
-El token se conserva solo en memoria. Recargar o cerrar sesión exige autenticarse otra vez. Un token inválido o vencido no abre la aplicación. Opcionalmente, `VITE_ME_PATH` permite obtener un perfil autenticado si el backend implementa esa ruta; no se presume que `/auth/me` ya exista.
+El token se conserva solo en memoria. Recargar o cerrar sesión exige autenticarse otra vez. Un token inválido o vencido no abre la aplicación. El cliente consulta `/auth/me`, implementado en el backend, para obtener la cuenta y el rol vigentes.
 
 Para trabajar con datos ilustrativos, se puede definir explícitamente `VITE_DATA_MODE=demo`. Esto cambia los datos, pero sigue exigiendo una cuenta real del backend y no permite simular identidades o elevar el rol desde el navegador.
 
@@ -63,7 +65,7 @@ VITE_LOGIN_PATH=/auth/login-json
 
 Reinicia Vite. Si las rutas del backend incluyen `/api/v1`, usa `VITE_API_BASE_URL=/api/api/v1`: el proxy elimina solo el primer `/api`. En producción configura una URL HTTPS absoluta o un proxy de mismo origen en el servidor que entrega `dist/`; el proxy de Vite solo sirve para desarrollo.
 
-El contrato de autenticación usa el JWT que devuelve la rama `Backend`. `/auth/login` es OAuth2 con formulario; para el JSON del frontend se usa `/auth/login-json`. Las rutas de listado de ocurrencias, curaduría, usuarios y refresco permanecen deshabilitadas hasta configurarlas expresamente. El guardado completo requiere además los contratos propuestos de hallazgos, fichas y fotografías; se bloquea con un mensaje claro si no están habilitados. Consulta [INTEGRACION_FASTAPI.md](docs/INTEGRACION_FASTAPI.md) y [REGISTRO_COMPLETO.md](docs/REGISTRO_COMPLETO.md).
+El backend incluido implementa el login, perfil, listado de ocurrencias, curaduría, usuarios y guardado completo de fichas, hallazgos y fotografías. Las rutas predeterminadas del frontend ya coinciden con esos endpoints. No existe renovación de tokens; la sesión finaliza al expirar. Si conservas un `.env` antiguo con rutas vacías, actualízalo desde `.env.example`. Consulta [INTEGRACION_FASTAPI.md](docs/INTEGRACION_FASTAPI.md) y [Backend/README.md](../Backend/README.md).
 
 ## Estructura
 

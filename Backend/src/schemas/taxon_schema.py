@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 TAXON_RANKS = [
     'kingdom', 'phylum', 'class', 'order', 'family', 'genus', 'species',
@@ -21,6 +21,13 @@ class TaxonRefInput(BaseModel):
     external_taxon_id: str | None = None
     common_name_es: str | None = None
     taxon_remarks: str | None = None
+
+    @field_validator("taxon_rank")
+    @classmethod
+    def valid_rank(cls, value):
+        if value not in TAXON_RANKS:
+            raise ValueError("Rango taxonómico inválido.")
+        return value
 
 
 class TaxonRefResponse(BaseModel):

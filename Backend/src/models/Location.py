@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import DateTime, Numeric, Text, func
+from sqlalchemy import DateTime, Numeric, String, Text, func
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -22,7 +22,7 @@ class Location(Base):
 
     location_id: Mapped[uuid.UUID] = mapped_column(PK(), primary_key=True, default=uuid.uuid4)
     country: Mapped[str] = mapped_column(Text, nullable=False, default="Colombia")
-    country_code: Mapped[str] = mapped_column(Text(2), nullable=False, default="CO")
+    country_code: Mapped[str] = mapped_column(String(2), nullable=False, default="CO")
     state_province: Mapped[str | None] = mapped_column(Text)
     municipality: Mapped[str | None] = mapped_column(Text)
     locality: Mapped[str | None] = mapped_column(Text)

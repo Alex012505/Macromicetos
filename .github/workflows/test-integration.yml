@@ -1,0 +1,55 @@
+name: Test integrated application
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: macromicetos
+          POSTGRES_PASSWORD: ci-test-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install backend
+        run: |
+          python -m venv Backend/.venv
+          Backend/.venv/bin/python -m pip install -r Backend/requirements-dev.txt
+      - name: Install frontend
+        run: npm --prefix frontend ci
+      - name: Test backend
+        run: Backend/.venv/bin/python -m pytest Backend/tests -q
+      - name: Test frontend
+        run: npm --prefix frontend test
+      - name: Test actual client against FastAPI
+        run: npm --prefix frontend run test:integration
+      - name: Test backend and actual client against PostgreSQL
+        run: Backend/.venv/bin/python Backend/tests/check_postgres.py
+        env:
+          DATABASE_URL: postgresql+psycopg2://postgres:ci-test-only@127.0.0.1:5432/macromicetos
+          MACROMICETOS_PG_TEST_ADMIN_PASSWORD: ci-test-only
+      - name: Build frontend
+        run: npm --prefix frontend run build

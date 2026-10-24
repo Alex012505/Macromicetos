@@ -1,154 +1,109 @@
-# Macromicetos · Registro académico
+# Macromicetos
 
-Plataforma web para consultar y registrar macromicetos de la Orinoquía colombiana. Organiza información taxonómica, observaciones de campo, distribución geográfica, fotografías y revisión científica, con vistas adaptadas al alcance de cada perfil.
+Aplicativo para registrar, consultar y revisar hallazgos de macromicetos. Usa React, FastAPI y PostgreSQL.
 
-El repositorio contiene el frontend funcional y la documentación de integración. **El backend FastAPI todavía no está implementado en este repositorio**: la aplicación inicia con datos de demostración y dispone de un cliente REST para conectarlo cuando esté disponible.
+## 1. Abrir el programa
 
-![Vista general de Macromicetos](frontend/docs/evidencias/dashboard.png)
-
-## Funcionalidades
-
-- Vista general con métricas calculadas a partir de los registros disponibles.
-- Catálogo con búsqueda, filtros por familia, ordenación y vistas de tarjetas o lista.
-- Fichas de especies con taxonomía, morfología, ecología, geografía y multimedia.
-- Mapa interactivo con filtros por departamento, familia, fechas y estado de revisión.
-- Creación y edición de observaciones mediante formularios de cuatro pasos con fotos iniciales, ubicación del dispositivo, coordenadas y selección en mapa.
-- Galería y carga de varias fotografías por hallazgo, con créditos y licencias.
-- Exportación del catálogo y los registros filtrados a CSV o Excel sin imágenes; fichas PDF por especie con fotografías.
-- Taxonomía ampliada, 18 rasgos morfológicos generales o por espécimen, medidas ambientales, participantes, bibliografía y entrevistas socioecológicas.
-- Curaduría para verificar registros o solicitar ajustes con comentarios.
-- Administración de usuarios y perfiles en demostración; operaciones REST configurables.
-- Diseño adaptable a escritorio y móvil, con una paleta basada en [Programa Orquídeas](https://programaorquideas.minciencias.gov.co/): morado, verde menta, blanco y gris.
-
-## Perfiles y alcance
-
-| Perfil | Acceso |
-| --- | --- |
-| Visitante | Consulta catálogo, fichas, mapa y galería. |
-| Investigador | Crea especies y registros asociados a su sesión; busca especies o crea nuevas durante el hallazgo; edita sus propias observaciones y les añade fotografías. |
-| Curador | Revisa observaciones, las verifica o solicita ajustes. |
-| Administrador | Gestiona todos los registros, curaduría, usuarios y roles; puede registrar hallazgos a nombre de otro investigador. |
-
-El investigador dispone de una vista de sus registros y métricas propias. Su cuenta se toma del login y no puede reasignar el registro; solo el administrador dispone del selector de investigador responsable. En demo se puede iniciar sesión como Laura o Diego para comprobarlo. El curador accede a la cola de revisión. El administrador tiene una visión global y puede asignar perfiles. La interfaz restringe controles y rutas; **FastAPI deberá validar identidad, rol y propiedad en cada petición**.
-
-
-
-## Tecnologías
-
-| Área | Herramientas |
-| --- | --- |
-| Interfaz | React 19 y TypeScript |
-| Desarrollo y compilación | Vite 6 |
-| Cartografía | Leaflet y OpenStreetMap |
-| Iconos | Lucide React |
-| Pruebas | Ejecutor de pruebas de Node.js |
-| Backend previsto | FastAPI mediante HTTP REST |
-
-## Instalar y ejecutar
-
-Requisitos: Git, Node.js **20.18 o superior** compatible con las dependencias y npm. La entrega se verificó con Node.js 20.18.0 y npm 10.8.2.
-
-```bash
-git clone https://github.com/Alex012505/Macromicetos.git
-cd Macromicetos/frontend
-npm ci
-npm run dev
-```
-
-Abre **http://127.0.0.1:5173/**. Si ya tienes el repositorio clonado, ejecuta los dos últimos comandos dentro de `frontend/`. El puerto es fijo: si está ocupado, detén la instancia anterior antes de iniciar otra.
-
-### Comandos disponibles
-
-Todos se ejecutan desde `frontend/`:
-
-| Comando | Resultado |
-| --- | --- |
-| `npm run dev` | Inicia el entorno local. |
-| `npm run build` | Comprueba TypeScript y genera la compilación en `dist/`. |
-| `npm test` | Ejecuta las pruebas de transporte HTTP y permisos. |
-| `npm run preview` | Sirve la compilación para revisión local. |
-
-`preview` requiere una compilación previa e indica su URL en la terminal. La carpeta `dist/` necesita un servidor HTTP; abrir `index.html` directamente como archivo no ejecuta la aplicación correctamente.
-
-## Modo demostración
-
-Sin configuración adicional, la aplicación utiliza datos ilustrativos. Inicia como una administradora de demostración y permite cambiar entre los cuatro perfiles desde el encabezado, sin credenciales reales.
-
-Las personas, observaciones, coordenadas, fechas, medidas y estados son ficticios. Las fotografías son referencias de especies y no prueban su presencia en la región. Los cambios se guardan en IndexedDB de ese navegador; no existe sincronización entre usuarios. La carga en demo admite hasta 2 MB por fotografía y hasta 10 fotos por operación. El guardado espera la confirmación de la transacción; si el navegador bloquea el almacenamiento o agota su cuota, el formulario conserva los datos. Los datos antiguos de `localStorage` se leen y pasan a IndexedDB al guardar.
-
-Esta versión es un modelo expositivo de las vistas finales. La configuración técnica de integración se conserva en archivos y documentación, sin un módulo de conexión dentro de la interfaz.
-
-## Conectar FastAPI
-
-Dentro de `frontend/`, copia `.env.example` como `.env`:
+En PowerShell:
 
 ```powershell
-Copy-Item .env.example .env
+cd E:\Macromicetos
+node scripts/dev.mjs
 ```
 
-En macOS o Linux, usa `cp .env.example .env`. Ajusta la configuración:
+Abre [Macromicetos](http://127.0.0.1:5173/Macromicetos/) e inicia sesión.
 
-```dotenv
-VITE_DATA_MODE=api
-VITE_API_BASE_URL=/api
-API_PROXY_TARGET=http://127.0.0.1:8000
+Deja la consola abierta mientras lo usas. Para detenerlo, pulsa **Ctrl+C**. Si ya está funcionando, abre el enlace sin ejecutar otra instancia.
+
+## 2. Crear usuarios y asignarles un perfil
+
+Cada persona debe tener su propia cuenta:
+
+1. En la pantalla de acceso, pulsa **Crear una cuenta de visitante**.
+2. Completa nombre, apellido, correo y contraseña.
+3. Entra con tu cuenta **administradora** y abre **Gestión de usuarios**.
+4. Busca la cuenta nueva, pulsa **Editar rol**, elige el perfil y pulsa **Guardar perfil**.
+5. La persona debe iniciar sesión nuevamente para usar sus nuevos permisos.
+
+Todas las cuentas nuevas empiezan como visitantes. Solo un administrador puede cambiar su perfil.
+
+| Perfil que muestra la web | Nombre interno | Qué puede hacer |
+| --- | --- | --- |
+| Visitante | `viewer` | Consultar catálogo, fichas, mapa y fotografías. |
+| Investigador | `analyst` | Crear fichas y hallazgos; editar sus propios registros. |
+| Curador | `curator` | Revisar hallazgos, verificarlos o solicitar ajustes. |
+| Administrador | `admin` | Gestionar registros, usuarios y perfiles. |
+
+### Si todavía no tienes un administrador
+
+Desde la raíz del proyecto, reemplaza el correo y el nombre:
+
+```powershell
+.\Backend\.venv\Scripts\python.exe Backend/manage.py create-admin --email "tu@correo.com" --first-name "Tu nombre"
 ```
 
-Reinicia Vite después de editar el archivo. En desarrollo, `/api/taxa` se redirige a `http://127.0.0.1:8000/taxa`. Si el backend tiene el prefijo `/api/v1`, configura `VITE_API_BASE_URL=/api/api/v1`: el proxy elimina únicamente el primer `/api`.
+La consola pedirá una contraseña de al menos ocho caracteres y su confirmación. No se ven caracteres al escribirla; es normal.
 
-Las rutas de listado de observaciones, curaduría, usuarios, actualización de roles y refresco requieren un acuerdo de contrato y se habilitan mediante variables explícitas. La respuesta de login debe aportar un token y un perfil; la referencia HTML original únicamente declara un mensaje.
+Si ese correo **ya está registrado**, usa este comando en lugar de crear otra cuenta:
 
-En modo API, los errores se muestran al usuario y no se sustituyen por ejemplos. Los tokens se mantienen en memoria, por lo que recargar requiere iniciar sesión otra vez. Las variables `VITE_*` son públicas: no deben contener secretos. Para producción, configura una URL HTTPS del backend o un proxy en el servidor web; el proxy de Vite es exclusivo de desarrollo.
-
-Consulta [el contrato de integración y sus pendientes](frontend/docs/INTEGRACION_FASTAPI.md).
-
-## Organización del repositorio
-
-```text
-Macromicetos/
-├── README.md
-├── .gitignore
-├── .gitattributes
-├── frontend/
-│   ├── public/             Favicon, fotografías y créditos
-│   ├── src/
-│   │   ├── components/     Formularios, fichas, mapa y usuarios
-│   │   ├── data/           Datos de demostración
-│   │   ├── lib/            Cliente REST, transporte y permisos
-│   │   ├── App.tsx         Navegación y vistas principales
-│   │   ├── types.ts        Modelos del frontend
-│   │   └── styles.css      Paleta y diseño adaptable
-│   ├── tests/              Pruebas HTTP y permisos por perfil
-│   ├── docs/               Entrega, integración, perfiles y evidencias
-│   ├── .env.example        Configuración pública de ejemplo
-│   ├── package.json
-│   └── package-lock.json   Dependencias reproducibles
-└── docs/                   Referencia HTML original de la API
+```powershell
+.\Backend\.venv\Scripts\python.exe Backend/manage.py set-role --email "tu@correo.com" --role admin
 ```
 
-Las referencias originales sirven para documentar el contrato; no constituyen un servidor FastAPI. El repositorio conserva las fuentes y el archivo de bloqueo. Las dependencias instaladas, compilaciones, cachés y archivos `.env` personales se excluyen de Git.
+También puedes asignar `analyst`, `curator` o `viewer` con el mismo comando. El correo debe pertenecer a una cuenta existente. No se permite retirar el rol al último administrador.
 
-## Validación y documentación
+## 3. Probar con datos artificiales
 
-La entrega pasó la comprobación TypeScript, la compilación de producción y **48 pruebas** de transporte, permisos, recursos para Pages, coordenadas y geolocalización simulada, morfología, adaptación al ORM, migración y exportaciones. Se recorrieron las interfaces en navegador, incluidos escritorio, móvil, formularios y acceso por perfil. Se verificaron también descargas reales CSV/XLSX/PDF y la conservación de varias fotos tras recargar. La conexión con una base de datos real permanece pendiente; los contratos nuevos están detallados en la [guía del registro completo](frontend/docs/REGISTRO_COMPLETO.md).
+Los hallazgos **PRUEBA-WEB-01** y **PRUEBA-WEB-02** se reservan para pruebas. Están marcados como artificiales, usan una ficha ficticia llamada *Prueba artificialis* y fotografías ilustrativas. **No son datos científicos ni evidencia de especies en la región.**
 
-- [Guía técnica del frontend](frontend/README.md).
-- [Perfiles, vistas y reglas de propiedad](frontend/docs/PERFILES_Y_VISTAS.md).
-- [Integración con FastAPI](frontend/docs/INTEGRACION_FASTAPI.md).
-- [Resultados y evidencias de validación](frontend/docs/VALIDACION.md).
-- [Alcance de la entrega de frontend](frontend/docs/ENTREGA_OPCION_2.md).
-- [Referencia HTML de la API](docs/index.html), para consulta local.
+Las pruebas web crean tres cuentas ficticias: visitante, investigador y curador. Sus correos y contraseñas se guardan únicamente en tu equipo, en `Backend/data/web-test-accounts.json`. Puedes usarlas para recorrer los perfiles. El administrador temporal de la prueba se elimina al terminar.
 
-## Colaboración
+Para probar el flujo:
 
-Trabaja en una rama para cada cambio y ejecuta `npm test` y `npm run build` antes de proponer su incorporación. Mantén la adaptación de endpoints en `frontend/src/lib/api.ts` y actualiza el contrato cuando cambie una respuesta del servidor. Evita introducir datos reales en la demostración o credenciales en el repositorio.
+1. Entra como investigador y abre **Registros de campo**.
+2. Crea o edita un hallazgo y añade una fotografía.
+3. Entra como curador y abre **Curaduría**.
+4. Verifica el hallazgo o solicita ajustes con un comentario.
+5. Entra como visitante y comprueba que puede consultar, pero no modificar.
 
-## Recursos y atribución
+## 4. Comprobar la base de datos
 
-Las fotografías locales cuentan con sus [créditos y licencias de origen](frontend/public/images/CREDITOS.md). El mapa utiliza OpenStreetMap con atribución visible. La cartografía y Google Fonts requieren internet; la interfaz muestra avisos de fallos del mapa y dispone de fuentes alternativas del sistema.
+Abre [Estado del backend](http://127.0.0.1:8000/health). Debe responder:
 
-Este repositorio no declara una licencia para el código del proyecto. Las licencias de las fotografías y dependencias se mantienen independientes.
+```json
+{"status":"ok","database":"postgresql"}
+```
 
-## Publicar en GitHub Pages
+Para comprobar también el nombre de la base, las tablas y el usuario de conexión:
 
-El workflow publica el modelo expositivo en https://alex012505.github.io/Macromicetos/. Primero selecciona GitHub Actions en Settings > Pages > Source. Después sube los cambios a main. Consulta la [guía de publicación y diagnóstico](frontend/docs/PUBLICACION_GITHUB_PAGES.md).
+```powershell
+.\Backend\.venv\Scripts\python.exe Backend/manage.py check-db
+```
+
+Los datos están en PostgreSQL; las fotos, en `Backend/data/images/`. Se conservan al reiniciar. La conexión privada está en `Backend/.env`. No compartas ese archivo ni la carpeta `Backend/data/`.
+
+## 5. Ejecutar las pruebas
+
+Desde la raíz, en otra consola:
+
+```powershell
+npm --prefix frontend test
+.\Backend\.venv\Scripts\python.exe Backend/tests/check_postgres.py
+npm --prefix frontend run test:web:local
+npm --prefix frontend run build
+```
+
+- `test`: comprueba el código del frontend.
+- `check_postgres.py`: pide la contraseña de PostgreSQL y usa bases temporales, sin cambiar los datos del aplicativo.
+- `test:web:local`: necesita el aplicativo iniciado y Chrome instalado. Prueba la web real y **crea o reutiliza las cuentas ficticias y los dos hallazgos artificiales en tu base local**. No usar en producción.
+- `build`: comprueba TypeScript y genera el frontend para publicación.
+
+## Instalación en otro equipo y documentación técnica
+
+Consulta [la guía del backend](Backend/README.md) para instalar dependencias y configurar PostgreSQL. La configuración inicial se realiza una sola vez; no repitas `setup_postgres.py` para arrancar el programa.
+
+- [Frontend](frontend/README.md).
+- [Contrato de integración](frontend/docs/INTEGRACION_FASTAPI.md).
+- [Perfiles y permisos](frontend/docs/PERFILES_Y_VISTAS.md).
+
+GitHub Pages aloja solo el frontend: el backend y PostgreSQL necesitan su propio servidor.

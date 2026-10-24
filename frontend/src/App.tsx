@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
-  BookOpen, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardList,
+  BookOpen, Check, ChevronLeft, ChevronRight, ClipboardList,
   ExternalLink, Flower2, Globe2, Image, LayoutDashboard, Leaf,
   LogOut, MapPin, Menu, Microscope, Plus, Search,
   ShieldCheck, SlidersHorizontal, Sprout, Users, X,

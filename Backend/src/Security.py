@@ -1,77 +1,68 @@
-import os
+"""Authentication and server-side permissions for every application operation."""
+import uuid
 from datetime import datetime, timedelta, timezone
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
-from database import get_db
-from models import UserWeb
+from database.Base import get_db
+from models.UserWeb import UserWeb
+from settings import SECRET_KEY, TOKEN_MINUTES
 
 ALGORITHM = "HS256"
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
-SECRET_KEY = os.getenv("SECRET_KEY", "super_secret_key_por_defecto_cambiala")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
+
 def hash_password(password: str) -> str:
-    """Genera el hash argon2id. Nunca se guarda la contraseña en claro."""
     return pwd_context.hash(password)
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Compara la contraseña en texto plano contra el hash guardado en la base de datos."""
-    return pwd_context.verify(plain_password, hashed_password)
+
+def verify_password(password: str, hashed_password: str) -> bool:
+    try:
+        return pwd_context.verify(password, hashed_password)
+    except (ValueError, TypeError):
+        return False
 
 
-def create_access_token(data: dict, expires_delta: timedelta = None) -> str:
-    """Genera un Access Token JWT firmado con la información del usuario."""
-    to_encode = data.copy()
-    
-    # Si no se define tiempo de expiración, por defecto dura 30 minutos
-    if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
-    else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=30)
-        
-    to_encode.update({"exp": expire})
-    
-    # Firmar el token con la llave secreta
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
+def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
+    payload = {**data, "exp": datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=TOKEN_MINUTES))}
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> UserWeb:
-    """
-    Middleware / Dependencia:
-    Extrae el JWT de la cabecera HTTP, lo decodifica y busca al usuario en PostgreSQL.
-    Si el token es inválido, expiró o el usuario no existe, levanta un 401 Unauthorized.
-    """
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="No se pudieron validar las credenciales o el token ha expirado",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    
+    invalid = HTTPException(401, "La sesión no es válida o ha vencido.", headers={"WWW-Authenticate": "Bearer"})
     try:
-        # 1. Decodificar el token usando la misma clave secreta
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        
-        # 2. Extraer el "sub" (subject), que en el login guardamos como el user_web_id
-        user_id: str = payload.get("sub")
-        if user_id is None:
-            raise credentials_exception
-            
-    except JWTError:
-        # Falla si la firma no coincide o el token ya expiró
-        raise credentials_exception
-        
-    # 3. Buscar el usuario en la base de datos usando el ID extraído
-    user = db.query(UserWeb).filter(UserWeb.user_web_id == user_id).first()
-    
-    if user is None:
-        raise credentials_exception
-        
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], options={"require_exp": True, "require_sub": True})
+        user_id = uuid.UUID(payload["sub"])
+    except (JWTError, ValueError, TypeError, KeyError):
+        raise invalid
+    user = db.get(UserWeb, user_id)
+    if user is None or payload.get("role") != user.role:
+        raise invalid
     return user
+
+
+def require_roles(*roles):
+    def authorize(user: UserWeb = Depends(get_current_user)):
+        if user.role not in roles:
+            raise HTTPException(403, "Tu perfil no permite realizar esta acción.")
+        return user
+    return authorize
+
+
+require_writer = require_roles("analyst", "admin")
+require_curator = require_roles("curator", "admin")
+require_admin = require_roles("admin")
+
+
+def user_profile(user: UserWeb) -> dict:
+    return {"user_web_id": str(user.user_web_id), "email": user.email, "first_name": user.first_name,
+            "last_name": user.last_name, "name": " ".join(part for part in (user.first_name, user.last_name) if part),
+            "role": user.role}
 
 
 

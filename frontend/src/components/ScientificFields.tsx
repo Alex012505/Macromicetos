@@ -5,7 +5,7 @@ export interface FieldSpec { key: string; label: string; type?: string; required
 export function Fields({ fields, value, onChange }: { fields: FieldSpec[]; value: object; onChange: (key: string, value: string) => void }) {
   return <div className="form-grid">{fields.map(f => {
     const v = String((value as Record<string, unknown>)[f.key] ?? '');
-    const props = { value: v, onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => onChange(f.key, e.target.value), required: f.required, className: f.scientific ? 'scientific-name' : undefined };
+    const props = { value: v, 'aria-label': f.label, onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => onChange(f.key, e.target.value), required: f.required, className: f.scientific ? 'scientific-name' : undefined };
     return <label className={`field ${f.type === 'textarea' ? 'span-2' : ''}`} key={f.key}>{f.label}{f.required ? ' *' : ''}{f.options ? <select {...props}>{f.options.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select> : f.type === 'textarea' ? <textarea {...props} rows={3} maxLength={f.max || 4000} /> : <input {...props} type={f.type || 'text'} min={f.min} max={f.type === 'number' ? f.max : undefined} step={f.type === 'number' ? f.step || 'any' : undefined} maxLength={f.type !== 'number' ? f.max || 300 : undefined} />}</label>;
   })}</div>;
 }

@@ -1,127 +1,66 @@
-"""Endpoints de autenticación: registro, login y cambio de contraseña."""
+"""Credential-based registration, login and authenticated account profile."""
 import uuid
 
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
-
-from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from Security import hash_password,verify_password,get_current_user
-from database.Base import get_db,engine
-from models.UserWeb import  UserWeb
-from schemas.user_schema import (ChangePasswordInput, MessageResponse,
-                     UserLoginInput, UserRegisterInput,TokenResponse)
+from Security import create_access_token, get_current_user, hash_password, user_profile, verify_password
+from database.Base import get_db
+from models.UserWeb import UserWeb
+from schemas.user_schema import ChangePasswordInput, UserLoginInput, UserRegisterInput
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
+@router.post("/register", status_code=201)
+def register(body: UserRegisterInput, db: Session = Depends(get_db)):
+    email = body.email.strip().lower()
+    if db.scalar(select(UserWeb).where(func.lower(UserWeb.email) == email)):
+        raise HTTPException(409, "Correo ya registrado.")
+    if not body.first_name.strip():
+        raise HTTPException(422, "Completa tu nombre.")
+    user = UserWeb(user_web_id=uuid.uuid4(), email=email, password_hash=hash_password(body.password),
+                   first_name=body.first_name.strip(), last_name=(body.last_name or "").strip() or None, role="viewer")
+    db.add(user)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, "Correo ya registrado.")
+    return {"message": "Cuenta creada correctamente. Inicia sesión."}
 
 
-@router.post("/register", response_model=MessageResponse, status_code=status.HTTP_201_CREATED)
-def register(body: UserRegisterInput, db: Session = Depends(get_db)):# acá si está usando el mismo objeto?
-    """Crea una cuenta con el rol de menor privilegio ('viewer')."""
-    #logic of email already registred
-    #___________________________________________________________________________________________________
-    existe = db.scalar(
-        select(UserWeb).where(func.lower(UserWeb.email) == body.email.lower())
-    )
-    if existe:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Correo ya registrado")
-    #___________________________________________________________________________________________________
-   
-    
-    
-    # 2. Creación del nuevo usuario público con rol 'viewer'
-    nuevo_usuario = UserWeb(
-        user_web_id=uuid.uuid4(),
-        email=body.email.lower(),
-        password_hash=hash_password(body.password),
-        first_name=getattr(body, "first_name", None),
-        last_name=getattr(body, "last_name", None),
-        role="viewer",  # Forzado por RBAC para evitar elevación de privilegios
-        
-    )
-    
-    db.add(nuevo_usuario)
+def authenticate(email: str, password: str, db: Session):
+    user = db.scalar(select(UserWeb).where(func.lower(UserWeb.email) == email.strip().lower()))
+    if not user or not verify_password(password, user.password_hash):
+        raise HTTPException(401, "Correo o contraseña incorrectos.", headers={"WWW-Authenticate": "Bearer"})
+    return {"access_token": create_access_token({"sub": str(user.user_web_id), "role": user.role}),
+            "token_type": "Bearer", "user": user_profile(user)}
+
+
+@router.post("/login")
+def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    return authenticate(form.username, form.password, db)
+
+
+@router.post("/login-json")
+def login_json(body: UserLoginInput, db: Session = Depends(get_db)):
+    return authenticate(body.email, body.password, db)
+
+
+@router.get("/me")
+def me(user: UserWeb = Depends(get_current_user)):
+    return user_profile(user)
+
+
+@router.post("/change-password")
+def change_password(body: ChangePasswordInput, db: Session = Depends(get_db),
+                    user: UserWeb = Depends(get_current_user)):
+    if not verify_password(body.old_password, user.password_hash):
+        raise HTTPException(403, "Contraseña actual incorrecta.")
+    user.password_hash = hash_password(body.new_password)
     db.commit()
-    return MessageResponse(message="Cuenta creada correctamente")
-
-
-@router.post("/login", response_model=TokenResponse, status_code=status.HTTP_200_OK)
-def login(
-    form: OAuth2PasswordRequestForm = Depends(),
-    db: Session = Depends(get_db),
-):
-    """Login estándar OAuth2 (form-data). Swagger lo usa con el botón Authorize."""
-    usuario = db.scalar(
-        select(UserWeb).where(func.lower(UserWeb.email) == form.username.lower())
-    )
-    if not usuario or not verify_password(form.password, usuario.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Correo o contraseña incorrectos",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    access_token = create_access_token(
-        data={"sub": str(usuario.user_web_id), "role": usuario.role}
-    )
-    return {"access_token": access_token, "token_type": "Bearer"}
-
-
-# Asegúrate de importar verify_password y create_access_token desde tu módulo Security
-from Security import hash_password, verify_password, create_access_token
-# Asegúrate de incluir TokenResponse en la importación de schemas.user_schema
-from schemas.user_schema import (ChangePasswordInput, MessageResponse,
-                     UserLoginInput, UserRegisterInput, TokenResponse)
-
-@router.post("/login-json", response_model=TokenResponse, status_code=status.HTTP_200_OK)
-def login(body: UserLoginInput, db: Session = Depends(get_db)):
-    """Verifica las credenciales y devuelve un token JWT (Access Token)."""
-    
-    # 1. Buscar al usuario por correo electrónico (Case Insensitive)
-    usuario = db.scalar(
-        select(UserWeb).where(func.lower(UserWeb.email) == body.email.lower())
-    )
-    
-    # 2. Verificar que el usuario exista y la contraseña sea correcta
-    if not usuario or not verify_password(body.password, usuario.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Correo o contraseña incorrectos",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-        
-    # 3. Generar el Access Token
-    # Se incluye el ID del usuario (sub) y su rol en el payload del JWT
-    access_token = create_access_token(
-        data={"sub": str(usuario.user_web_id), "role": usuario.role}
-    )
-    
-    # 4. Retornar la respuesta estructurada
-    return {"access_token": access_token, "token_type": "Bearer"}
-
-@router.post("/change-password", response_model=MessageResponse, status_code=status.HTTP_200_OK)
-def change_password(
-    body: ChangePasswordInput,
-    db: Session = Depends(get_db),
-    current_user: UserWeb = Depends(get_current_user)
-):
-    """Permite a un usuario autenticado cambiar su contraseña actual por una nueva."""
-    
-    # 1. Verificar que la contraseña actual sea correcta
-    if not verify_password(body.old_password, current_user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="La contraseña actual es incorrecta"
-        )
-        
-    # 2. Cifrar la nueva contraseña con argon2
-    current_user.password_hash = hash_password(body.new_password)
-    
-    # 3. Guardar cambios en la base de datos
-    db.commit()
-    db.refresh(current_user)
-    
-    return {"message": "Contraseña actualizada correctamente"}
+    return {"message": "Contraseña actualizada correctamente."}

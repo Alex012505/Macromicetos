@@ -1,6 +1,6 @@
 # Registro ampliado y correspondencia con el modelo
 
-Actualización: 17 de octubre de 2026. Esta entrega implementa el frontend. El repositorio no contiene FastAPI ni PostgreSQL; la persistencia contra el servidor sigue pendiente de implementación y verificación.
+Actualización: 24 de octubre de 2026. El repositorio contiene frontend y FastAPI integrados. El aplicativo requiere PostgreSQL; el guardado completo y el cliente TypeScript se verificaron con PostgreSQL 18. SQLite se limita a pruebas rápidas aisladas. El ORM no instala PostGIS ni reconstruye vistas o triggers de un esquema SQL externo. Consulta [Backend/README.md](../../Backend/README.md).
 
 ## Cobertura de la información
 
@@ -67,9 +67,9 @@ CSV y Excel no incluyen imágenes, datos binarios, entrevistas ni correos de par
 
 Si una fotografía del PDF no se puede cargar, se informa en la ficha y en la interfaz. Las imágenes remotas necesitan estar disponibles con permisos CORS para incorporarse al PDF. Las fotografías locales cargadas se admiten mediante URLs de datos de imágenes rasterizadas, excluyendo SVG y esquemas activos. Los créditos de las imágenes de referencia se conservan.
 
-## Contratos de servidor propuestos
+## Contratos de servidor implementados
 
-Estas operaciones **no están implementadas en el repositorio**. Sus rutas se configuran expresamente; no son una afirmación de que existan en la API original. Hasta habilitarlas, el modo API conserva los formularios y muestra que el guardado completo no está disponible. El cliente no envía los datos ampliados al endpoint básico, donde podrían ignorarse.
+Estas operaciones están implementadas en `Backend/src/routers/application.py` y son las rutas predeterminadas del frontend. Guardan las entidades principales y la morfología en los modelos originales; las colecciones que no tenían entidades ORM se conservan en la tabla adicional `application_state`. La prueba de integración utiliza el cliente TypeScript real contra FastAPI.
 
 | Variable | Ejemplo de ruta | Método y contenido |
 | --- | --- | --- |

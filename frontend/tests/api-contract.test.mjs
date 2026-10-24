@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { build } from 'esbuild';
 
-const compiled = await build({ entryPoints: ['src/lib/api.ts'], bundle: true, platform: 'node', format: 'esm', write: false, define: { 'import.meta.env': JSON.stringify({ VITE_DATA_MODE: 'api' }) } });
+const compiled = await build({ entryPoints: ['src/lib/api.ts'], bundle: true, platform: 'node', format: 'esm', write: false, define: { 'import.meta.env': JSON.stringify({ VITE_DATA_MODE: 'api', VITE_ME_PATH: '', VITE_USER_UPDATE_PATH: '', VITE_RECORD_BUNDLE_PATH: '', VITE_TAXON_BUNDLE_PATH: '', VITE_MEDIA_BUNDLE_PATH: '' }) } });
 const { normalizeTaxon, normalizeOccurrence, normalizeUser, api, http, config } = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
 
 test('ORM names, bibliography, knowledge, false boolean values, and IDs survive normalization', () => {
