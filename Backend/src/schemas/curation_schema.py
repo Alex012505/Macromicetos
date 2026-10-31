@@ -1,7 +1,7 @@
 import uuid
 import datetime as dt
 from typing import Literal
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 # Espejo EXACTO del ENUM curaduria.curable_entity_enum de la BD.
 # Cuando agregues una capa nueva, toca aquí Y en el SQL.
@@ -14,6 +14,26 @@ CURATION_STATUSES = Literal[
     "draft", "submitted", "in_review",
     "verified", "needs_adjustment", "rejected",
 ]
+
+# Decisión simplificada que expone el formulario de curaduría del aplicativo.
+CurationStatus = Literal["verified", "rejected"]
+
+# Estados que ve la cola de curaduría del aplicativo. Agrupan los estados
+# técnicos de curation_status_enum sin exponerlos al frontend.
+QueueStatus = Literal["pending", "verified", "rejected"]
+
+
+class ReviewInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: CurationStatus
+    review_note: str = Field("", max_length=2000)
+
+    @model_validator(mode="after")
+    def rejection_reason(self):
+        if self.status == "rejected" and len(self.review_note.strip()) < 10:
+            raise ValueError("Explica los ajustes necesarios con al menos 10 caracteres.")
+        return self
 
 
 class CurationDecisionInput(BaseModel):

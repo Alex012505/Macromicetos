@@ -34,7 +34,7 @@ export function ParticipantsEditor({ value, onChange, taxon = false, media = fal
 }
 export function SourcesEditor({ value, onChange }: { value: ScientificSource[]; onChange: (v: ScientificSource[]) => void }) {
   return <>{value.map((s, i) => <fieldset className="entry-card" key={s.id}><legend>Referencia {i + 1}</legend><Fields value={s} fields={[
-    { key: 'sourceType', label: 'Tipo de fuente', required: true, options: [['article', 'Artículo'], ['book', 'Libro'], ['thesis', 'Tesis'], ['report', 'Informe'], ['website', 'Sitio web'], ['other', 'Otra']] },
+    { key: 'sourceType', label: 'Tipo de fuente', required: true, options: [['article', 'Artículo'], ['book', 'Libro'], ['book_chapter', 'Capítulo de libro'], ['thesis', 'Tesis'], ['report', 'Informe'], ['dataset', 'Conjunto de datos'], ['preprint', 'Preprint'], ['conference_paper', 'Ponencia'], ['field_guide', 'Guía de campo'], ['website', 'Sitio web'], ['other', 'Otra']] },
     { key: 'title', label: 'Título', required: true }, { key: 'authors', label: 'Autores' }, { key: 'year', label: 'Año', type: 'number', min: 1, max: 32767, step: '1' }, { key: 'doi', label: 'DOI', max: 120 },
   ]} onChange={(key, v) => onChange(value.map(r => r.id === s.id ? { ...r, [key]: v } : r))} /><button type="button" className="text-button danger" onClick={() => onChange(value.filter(r => r.id !== s.id))}>Quitar referencia</button></fieldset>)}<button type="button" className="btn small" onClick={() => onChange([...value, { id: crypto.randomUUID(), sourceType: 'article', title: '' }])}>Añadir referencia</button></>;
 }
@@ -44,16 +44,24 @@ export function KnowledgeEditor({ value, onChange }: { value: EthnoSurvey[]; onC
     { key: 'interviewDate', label: 'Fecha de entrevista', type: 'date', required: true }, { key: 'interviewer', label: 'Entrevistador/a', required: true },
     { key: 'consentType', label: 'Tipo de consentimiento', max: 12, options: [['', 'Sin especificar'], ['verbal', 'Verbal'], ['written', 'Escrito']] },
     { key: 'anonymityLevel', label: 'Anonimato', options: [['anonymous', 'Anónimo'], ['pseudonym', 'Seudónimo'], ['identified', 'Identificado']] },
-    { key: 'ageRange', label: 'Rango de edad', max: 10 }, { key: 'gender', label: 'Género (persona)', max: 20 }, { key: 'occupation', label: 'Ocupación', max: 32 },
+    { key: 'ageRange', label: 'Rango de edad', options: [['', 'Sin especificar'], ['12-17', '12–17'], ['18-25', '18–25'], ['26-40', '26–40'], ['41-60', '41–60'], ['60+', '60+']] },
+    { key: 'gender', label: 'Género (persona)', options: [['', 'Sin especificar'], ['male', 'Masculino'], ['female', 'Femenino'], ['non_binary', 'No binario'], ['prefer_not_to_say', 'Prefiere no decirlo']] },
+    { key: 'occupation', label: 'Ocupación', options: [['', 'Sin especificar'], ['farmer', 'Agricultor/a'], ['fisher', 'Pescador/a'], ['indigenous_knowledge_holder', 'Sabedor/a indígena'], ['rancher', 'Ganadero/a'], ['forester', 'Silvicultor/a'], ['student', 'Estudiante'], ['teacher', 'Docente'], ['other', 'Otra']] },
     { key: 'stateProvince', label: 'Departamento' }, { key: 'municipality', label: 'Municipio' }, { key: 'village', label: 'Vereda' },
-    { key: 'localName', label: 'Nombre local del hongo' }, { key: 'learningSource', label: 'Origen del conocimiento', max: 32 },
+    { key: 'localName', label: 'Nombre local del hongo' },
+    { key: 'learningSource', label: 'Origen del conocimiento', options: [['', 'Sin especificar'], ['family', 'Familia'], ['community', 'Comunidad'], ['personal_experience', 'Experiencia personal'], ['books', 'Libros'], ['workshops', 'Talleres'], ['internet', 'Internet'], ['other', 'Otra']] },
     { key: 'recognitionCues', label: 'Criterios de reconocimiento', type: 'textarea' }, { key: 'foundInPlaces', label: 'Lugares donde se encuentra' },
     { key: 'seasonality', label: 'Estacionalidad' }, { key: 'months', label: 'Meses de presencia', max: 64 }, { key: 'safetyPractices', label: 'Prácticas de seguridad', type: 'textarea' },
-    { key: 'mythsStories', label: 'Relatos y mitos', type: 'textarea' }, { key: 'culturalIdentity', label: 'Identidad cultural', max: 16 }, { key: 'remarks', label: 'Notas de entrevista', type: 'textarea' },
+    { key: 'mythsStories', label: 'Relatos y mitos', type: 'textarea' },
+    { key: 'culturalIdentity', label: 'Identidad cultural', options: [['', 'Sin especificar'], ['yes', 'Sí'], ['no', 'No'], ['partial', 'Parcial']] },
+    { key: 'recommendations', label: 'Recomendaciones de la fuente', type: 'textarea' },
+    { key: 'remarks', label: 'Notas de entrevista', type: 'textarea' },
   ]} onChange={(key, v) => update(s.id, { [key]: v })} /><label className="checkbox-label"><input type="checkbox" checked={s.consentGiven} onChange={e => update(s.id, { consentGiven: e.target.checked })} />Consentimiento otorgado</label><label className="checkbox-label"><input type="checkbox" checked={s.knowsFungi} onChange={e => update(s.id, { knowsFungi: e.target.checked })} />La persona conoce los hongos</label>
     {s.uses.map((u, j) => <fieldset className="entry-card" key={u.id}><legend>Uso reportado {j + 1}</legend><Fields value={u} fields={[
-      { key: 'useCategory', label: 'Categoría de uso', required: true, max: 32 }, { key: 'importance', label: 'Importancia', max: 10 }, { key: 'preparationMethod', label: 'Preparación', type: 'textarea' },
-      { key: 'ailment', label: 'Afección mencionada' }, { key: 'dosage', label: 'Dosificación reportada' }, { key: 'contraindications', label: 'Contraindicaciones reportadas', type: 'textarea' }, { key: 'recommendations', label: 'Recomendaciones de la fuente', type: 'textarea' },
+      { key: 'useCategory', label: 'Categoría de uso', required: true, options: [['', 'Selecciona una categoría'], ['edible', 'Comestible'], ['medicinal', 'Medicinal'], ['ritual', 'Ritual'], ['dye', 'Tinte'], ['soil_improvement', 'Mejora del suelo'], ['biological_control', 'Control biológico'], ['animal_feed', 'Alimento animal'], ['other', 'Otro']] },
+      { key: 'importance', label: 'Importancia', options: [['', 'Sin especificar'], ['high', 'Alta'], ['medium', 'Media'], ['low', 'Baja']] },
+      { key: 'preparationMethod', label: 'Preparación', type: 'textarea' },
+      { key: 'ailment', label: 'Afección mencionada' }, { key: 'dosage', label: 'Dosificación reportada' }, { key: 'contraindications', label: 'Contraindicaciones reportadas', type: 'textarea' },
     ]} onChange={(key, v) => update(s.id, { uses: s.uses.map(r => r.id === u.id ? { ...r, [key]: v } as EthnoUse : r) })} /><button type="button" className="text-button danger" onClick={() => update(s.id, { uses: s.uses.filter(r => r.id !== u.id) })}>Quitar uso</button></fieldset>)}
     <div className="form-actions start"><button type="button" className="btn small" onClick={() => update(s.id, { uses: [...s.uses, { id: crypto.randomUUID(), useCategory: '' }] })}>Añadir uso reportado</button><button type="button" className="text-button danger" onClick={() => onChange(value.filter(r => r.id !== s.id))}>Quitar entrevista</button></div>
   </fieldset>)}<button type="button" className="btn small" onClick={() => onChange([...value, { id: crypto.randomUUID(), interviewDate: '', interviewer: '', consentGiven: false, anonymityLevel: 'anonymous', knowsFungi: true, uses: [] }])}>Añadir entrevista</button></>;

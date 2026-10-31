@@ -77,8 +77,12 @@ try {
   assert.equal((await api.taxon(taxon.id)).image, saved.images[0]);
   assert.equal((await api.occurrences()).length, 1);
   await api.login('curator@example.org', password);
+  const pendingQueue = await api.curationQueue('pending');
+  assert.equal(pendingQueue.total, 1); assert.equal(pendingQueue.items[0].id, saved.id);
   await api.curate(saved, 'verified', 'Verificación completa');
   assert.equal((await api.occurrence(saved.id)).status, 'verified');
+  const verifiedQueue = await api.curationQueue('verified');
+  assert.equal(verifiedQueue.total, 1); assert.equal(verifiedQueue.items[0].id, saved.id);
   await api.login('viewer@example.org', password);
   const visible = await api.taxon(taxon.id);
   assert.equal(visible.knowledge.length, 0); assert.ok(!JSON.stringify(visible).includes('private@example.org'));

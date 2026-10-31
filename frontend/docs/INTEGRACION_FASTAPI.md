@@ -1,6 +1,6 @@
 # Contrato integrado frontend ↔ FastAPI
 
-Los contratos de los formularios están implementados en `Backend/src/routers/application.py` y `Backend/src/services/application.py`. Ya no es necesario definir endpoints pendientes para usar el aplicativo local.
+Los contratos de los formularios están implementados en `Backend/src/routers/application/` (un router por recurso), `Backend/src/schemas/bundles.py` y `Backend/src/services/application.py`. Ya no es necesario definir endpoints pendientes para usar el aplicativo local.
 
 ## Configuración
 
@@ -12,6 +12,7 @@ Sin `frontend/.env`, el cliente usa `/api`; Vite reenvía las peticiones a `http
 | `VITE_ME_PATH` | `/auth/me` |
 | `VITE_OCCURRENCES_LIST_PATH` | `/occurrences` |
 | `VITE_CURATE_PATH` | `/occurrences/{id}/curation` |
+| `VITE_CURATION_QUEUE_PATH` | `/curation/queue` |
 | `VITE_USERS_PATH` | `/users` |
 | `VITE_USER_UPDATE_PATH` | `/users/{id}` |
 | `VITE_RECORD_BUNDLE_PATH` | `/record-bundles/{id}` |
@@ -46,7 +47,22 @@ Se admiten JPG, PNG y WebP reales, 10 MB por archivo, hasta 10 por lote. El back
 
 ## Curaduría
 
-`PATCH /occurrences/{id}/curation` recibe `{status,review_note}`. `status` es `verified` o `rejected`; un rechazo exige una explicación de al menos diez caracteres. Solo `curator` y `admin` pueden decidir. Se registra el historial en `curaduria.curation_decision`.
+La curaduría reutiliza la tabla y el modelo heredados `curaduria.curation_decision`, sus enums y los esquemas de `curation_schema.py`. Las rutas heredadas `/legacy/curations` siguen disponibles solo para administración; el aplicativo usa las rutas de aplicación, que no dependen de la vista `curaduria.current_status`.
+
+| Acción | Ruta | Roles |
+| --- | --- | --- |
+| Cola por estado (`pending`, `verified`, `rejected`) | `GET /curation/queue?status=pending` | `curator`, `admin` |
+| Estado actual e historial de una observación | `GET /occurrences/{id}/curation` | `curator`, `admin` |
+| Decidir por ID de observación | `PATCH /occurrences/{id}/curation` | `curator`, `admin` |
+| Actualizar una revisión por ID de curaduría | `PATCH /curations/{decision_id}` | `curator`, `admin` |
+
+`PATCH` recibe `{status,review_note}`. `status` es `verified` o `rejected`; un rechazo exige una explicación de al menos diez caracteres. Cada decisión se agrega a `curaduria.curation_decision` y conserva el historial. La cola agrupa los estados técnicos así:
+
+- `pending`: `draft`, `submitted`, `in_review` o sin decisión. Es el único estado revisable.
+- `verified`: `verified`. Se puede consultar, pero no volver a editar desde curaduría.
+- `rejected`: `needs_adjustment` o `rejected`. Ya fue devuelto y espera los cambios del investigador; al guardar una edición vuelve a `pending`.
+
+`PATCH /curations/{decision_id}` solo acepta la decisión vigente y pendiente de la observación; si ya fue reemplazada o resuelta responde `409`. No modifica la fila anterior: agrega una decisión nueva para no perder la trazabilidad.
 
 ## Ejecución y comprobación
 

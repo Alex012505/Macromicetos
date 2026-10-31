@@ -69,7 +69,7 @@ Si una fotografía del PDF no se puede cargar, se informa en la ficha y en la in
 
 ## Contratos de servidor implementados
 
-Estas operaciones están implementadas en `Backend/src/routers/application.py` y son las rutas predeterminadas del frontend. Guardan las entidades principales y la morfología en los modelos originales; las colecciones que no tenían entidades ORM se conservan en la tabla adicional `application_state`. La prueba de integración utiliza el cliente TypeScript real contra FastAPI.
+Estas operaciones están implementadas en `Backend/src/routers/application/` (un router por recurso) y son las rutas predeterminadas del frontend. Guardan las entidades principales y la morfología en los modelos originales; las colecciones que no tenían entidades ORM se conservan en la tabla adicional `application_state`. La prueba de integración utiliza el cliente TypeScript real contra FastAPI.
 
 | Variable | Ejemplo de ruta | Método y contenido |
 | --- | --- | --- |

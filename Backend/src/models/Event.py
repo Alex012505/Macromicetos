@@ -17,12 +17,6 @@ SAMPLING_PROTOCOL_ENUM = SQLEnum(
     'TargetedCollection', 'PhotographicRecord', 'MixedProtocol',
     name="sampling_protocol_enum", create_type=False,
 )
-SAMPLING_EFFORT_ENUM = SQLEnum(
-    '1 observer-hour', '2 observer-hours', '4 observer-hours',
-    'half-day survey', 'full-day survey',
-    '100 m transect', '500 m transect', '1 plot', '2 plots',
-    name="sampling_effort_enum", create_type=False,
-)
 
 
 class Event(Base):
@@ -40,7 +34,8 @@ class Event(Base):
     event_time: Mapped[str | None] = mapped_column(Text)
     recorded_by: Mapped[str | None] = mapped_column(Text)
     sampling_protocol: Mapped[str | None] = mapped_column(SAMPLING_PROTOCOL_ENUM)
-    sampling_effort: Mapped[str | None] = mapped_column(SAMPLING_EFFORT_ENUM)
+    # Texto libre: el formulario pide "Esfuerzo de muestreo" sin lista cerrada.
+    sampling_effort: Mapped[str | None] = mapped_column(Text)
     event_remarks: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[object] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[object] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

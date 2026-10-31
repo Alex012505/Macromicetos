@@ -51,6 +51,10 @@ El ORM actual utiliza latitud/longitud numéricas y no requiere ni instala PostG
 
 El archivo SQLite anterior, si existe, se conserva sin uso. No hay importación automática: cambiar la URL no transfiere datos. Respalda PostgreSQL y la carpeta de fotografías por separado.
 
+Las capas bibliográfica y socioecológica (`bibliographic.*` y `socioecological.*`) se crean en la base activa con `Backend/sql/macromicetos/01_capas_bibliografica_socioecologica.sql`. Es idempotente y se ejecuta con el mismo usuario de la aplicación, que es dueño de la base.
+
+Para apuntar la aplicación a la base heredada `Macromycets` hay dos scripts idempotentes en `Backend/sql/macromycets/`: `01_compatibilidad_app.sql` (permisos, `application_state`, `search_path` y restricciones incompatibles) y `02_ownership_legacy.sql` (asigna dueño a los registros heredados). Se ejecutan como `postgres` y el procedimiento completo está en `Backend/docs/MIGRACION_MACROMYCETS.md`, incluida la ruta para normalizar bibliografía y entrevistas en sus tablas propias.
+
 Las fotos del catálogo se sirven públicamente bajo URLs con UUID en `/media/`; no contienen entrevistas ni correos. La API de datos requiere autenticación y omite contactos/entrevistas para perfiles sin permiso. Los archivos se guardan con nombres generados, no con rutas suministradas por el cliente.
 
 ## Perfiles
@@ -85,7 +89,12 @@ Se impide eliminar el último rol administrador. Cambiar el rol invalida los tok
 | PUT | `/record-bundles/{id}` | Guardado completo del hallazgo y fotos iniciales |
 | PUT | `/occurrences/{id}/media-bundle` | Fotos adicionales con metadatos y créditos |
 | POST | `/occurrences/{id}/photos` | Carga simple de archivos bajo campos `files` |
+| GET | `/curation/queue?status=pending\|verified\|rejected` | Cola de curaduría por estado |
+| GET | `/occurrences/{id}/curation` | Estado actual e historial de revisión |
 | PATCH | `/occurrences/{id}/curation` | Verificar o solicitar ajustes |
+| PATCH | `/curations/{decision_id}` | Actualizar una revisión pendiente por su ID |
+
+La curaduría reutiliza la tabla heredada `curaduria.curation_decision` y sus enums. `pending` agrupa `draft`, `submitted`, `in_review` o la ausencia de decisión y es el único estado revisable; `verified` es de solo lectura; `rejected` agrupa `needs_adjustment` y `rejected` y espera los cambios del investigador. Cada decisión se agrega como una fila nueva para conservar el historial; una edición del hallazgo lo devuelve a `pending`.
 
 Los PUT multipart reciben un campo `payload` JSON y un archivo `file_<media_id>` por fotografía. Los UUID permanecen estables para reintentos. Cada operación confirma la transacción completa o revierte entidades y archivos nuevos; no elimina fotografías preexistentes. Una foto admite JPG, PNG o WebP reales, hasta 10 MB, máximo 10 por operación. Un mismo hash no se duplica.
 

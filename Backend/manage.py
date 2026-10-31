@@ -35,7 +35,7 @@ def main():
             print(f"Motor: {db.get_bind().dialect.name}; base: {name}; usuario: {user}")
             print(f"Superusuario: {privileges[0]}; crear bases: {privileges[1]}; crear roles: {privileges[2]}")
             catalog = inspect(db.connection())
-            for schema in ("public", "shared", "ecological", "curaduria"):
+            for schema in ("public", "shared", "ecological", "curaduria", "socioecological", "bibliographic"):
                 print(f"{schema}: {', '.join(catalog.get_table_names(schema=schema))}")
             print(f"Usuarios del aplicativo: {db.scalar(select(func.count()).select_from(UserWeb))}")
         return

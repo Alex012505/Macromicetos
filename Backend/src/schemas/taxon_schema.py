@@ -30,6 +30,14 @@ class TaxonRefInput(BaseModel):
         return value
 
 
+class TaxonData(TaxonRefInput):
+    """Taxon payload used inside the complete taxon form."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    taxon_id: uuid.UUID
+
+
 class TaxonRefResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 

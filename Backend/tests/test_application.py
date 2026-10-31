@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 from conftest import PASSWORD
 from database.Base import SessionLocal, engine
 from models.CurationDecision import CurationDecision
+from models.ApplicationState import ApplicationState
 from models.Event import Event
 from models.Location import Location
 from models.Multimedia import Multimedia
@@ -31,8 +32,8 @@ def taxon_bundle():
             "morphology": [{"taxon_id": taxon_id, "measurement_type": "color_sombrero", "measurement_value": "Gris"}],
             "sources": [{"source_id": uid(), "title": "Manual científico", "year": 2026}],
             "participants": [{"party": {"party_id": uid(), "display_name": "Ana", "contact_email": "private@example.org"}, "party_role": "author"}],
-            "knowledge": [{"source": {"ethno_source_id": uid(), "interview_date": "2026-10-22T12:00:00-05:00", "consent_given": True},
-                           "knowledge": {"knows_fungi": False}, "uses": [{"use_category": "cultural"}]}]}
+            "knowledge": [{"source": {"ethno_source_id": uid(), "interview_date": "2026-10-22T12:00:00-05:00", "interviewer": "Ana", "consent_given": True},
+                           "knowledge": {"knows_fungi": False}, "uses": [{"use_category": "ritual"}]}]}
 
 
 def record_bundle(taxon_id=None):
@@ -107,6 +108,53 @@ def test_taxon_full_form_survives_round_trip_and_redacts_interviews(client, acco
     assert client.put(f"/taxon-bundles/{duplicate['taxon']['taxon_id']}", json=duplicate, headers=accounts["alice"]["headers"]).status_code == 409
 
 
+def test_taxon_bundle_contract_round_trip_and_rejects_unknown_enums(client, accounts):
+    taxon_id, interview_id, knowledge_id, use_id, party_id = uid(), uid(), uid(), uid(), uid()
+    body = {
+        "taxon": {"taxon_id": taxon_id, "scientific_name": "Lentinus crinitus", "taxon_rank": "species",
+                  "kingdom": "Fungi", "class": "Agaricomycetes", "order": "Polyporales"},
+        "morphology": [],
+        "sources": [{"source_id": uid(), "source_type": "website", "title": "GBIF", "authors": None, "year": None, "doi": None}],
+        "knowledge": [{
+            "source": {"ethno_source_id": interview_id, "interview_date": "2026-10-22T12:00:00-05:00",
+                       "interviewer": "Ana", "consent_given": True, "consent_type": "verbal",
+                       "anonymity_level": "pseudonym", "age_range": "41-60", "gender": "female",
+                       "occupation": "farmer", "state_province": "Vichada", "municipality": "Cumaribo",
+                       "village": "Chupave", "remarks": ""},
+            "knowledge": {"knows_fungi": True, "local_name": "oreja de palo", "learning_source": "family",
+                          "recognition_cues": "", "found_in_places": "", "seasonality": "", "months": "",
+                          "safety_practices": "", "myths_stories": "", "cultural_identity": "partial",
+                          "knowledge_id": knowledge_id, "ethno_source_id": interview_id, "taxon_id": taxon_id},
+            "uses": [{"use_id": use_id, "use_category": "medicinal", "importance": "high",
+                      "preparation_method": "", "ailment": "inflamación", "dosage": "",
+                      "contraindications": "", "recommendations": "", "knowledge_id": knowledge_id}],
+        }],
+        "participants": [{"party": {"party_id": party_id, "given_name": "Ana", "family_name": "Rojas",
+                                    "display_name": "Ana Rojas", "orcid": "0000-0002-1825-0097",
+                                    "affiliation": "", "contact_email": "ana@example.org"},
+                          "party_role": "observer", "scope": "occurrence", "is_primary": False}],
+    }
+    response = client.put(f"/taxon-bundles/{taxon_id}", json=body, headers=accounts["alice"]["headers"])
+    assert response.status_code == 200, response.text
+    saved = response.json()
+    assert saved["sources"][0]["source_type"] == "website" and saved["sources"][0]["year"] is None
+    survey = saved["knowledge"][0]
+    assert survey["source"]["age_range"] == "41-60" and survey["source"]["consent_type"] == "verbal"
+    assert survey["knowledge"]["knowledge_id"] == knowledge_id
+    assert survey["uses"][0]["use_id"] == use_id and survey["uses"][0]["use_category"] == "medicinal"
+    assert saved["participants"][0]["party"]["display_name"] == "Ana Rojas"
+
+    for path, value in ((["sources", 0, "source_type"], "blog"),
+                        (["knowledge", 0, "uses", 0, "use_category"], "cultural"),
+                        (["knowledge", 0, "source", "age_range"], "40-60")):
+        invalid = copy.deepcopy(body)
+        target = invalid
+        for key in path[:-1]:
+            target = target[key]
+        target[path[-1]] = value
+        assert client.put(f"/taxon-bundles/{taxon_id}", json=invalid, headers=accounts["alice"]["headers"]).status_code == 422
+
+
 def test_full_record_identity_photos_and_idempotent_retry(client, accounts):
     body = record_bundle()
     body["owner_id"] = accounts["bob"]["id"]
@@ -117,6 +165,7 @@ def test_full_record_identity_photos_and_idempotent_retry(client, accounts):
     assert response.status_code == 200, response.text
     saved = response.json()
     assert saved["owner_id"] == accounts["alice"]["id"] and saved["created_by_id"] == accounts["alice"]["id"]
+    assert saved["participants"][0]["party"]["display_name"] == "Participante"
     assert saved["event"]["recorded_by"] == saved["recorded_by"] == "Alice"
     assert saved["event"]["sampling_effort"] == "Tres horas"
     assert saved["substrate"] == "Madera muerta"
@@ -137,6 +186,39 @@ def test_full_record_identity_photos_and_idempotent_retry(client, accounts):
     assert put_record(client, body, accounts["bob"], {media_id: picture()}).status_code == 403
 
 
+def test_record_parties_and_photo_credits_are_normalized(client, accounts):
+    body = record_bundle()
+    body["participants"].append({"party": {"party_id": uid(), "given_name": "Luis", "family_name": "Pérez"},
+                                 "party_role": "coordinator", "scope": "event", "is_primary": True})
+    media_id = uid()
+    body["multimedia"] = [{"media_id": media_id, "file_name": "photo.png", "photo_type": "habitus",
+                           "credits": [{"party": {"given_name": "Ana", "family_name": "Rojas",
+                                                  "contact_email": "private@example.org"},
+                                        "credit_role": "photographer", "is_primary": True}]}]
+    response = put_record(client, body, accounts["alice"], {media_id: picture()})
+    assert response.status_code == 200, response.text
+    saved = response.json()
+    assert [(p["party_role"], p["scope"]) for p in saved["participants"]] == [("collector", "occurrence"), ("coordinator", "event")]
+    assert saved["participants"][1]["is_primary"] is True
+    photo = saved["multimedia"][0]
+    assert photo["photo_type"] == "habitus"
+    assert photo["credits"][0]["credit_role"] == "photographer" and photo["credits"][0]["is_primary"] is True
+
+    # El JSON ya no duplica ubicación, evento, sustrato ni participantes.
+    with SessionLocal() as db:
+        state = db.get(ApplicationState, ("occurrence", uuid.UUID(saved["occurrence_id"])))
+        assert set(state.payload) == {"snapshot", "measurements"}
+        media_state = db.get(ApplicationState, ("multimedia", uuid.UUID(media_id)))
+        assert media_state.payload == {}
+    public = client.get(f"/occurrences/{saved['occurrence_id']}", headers=accounts["viewer"]["headers"]).json()
+    assert "private@example.org" not in json.dumps(public)
+
+    body["participants"] = body["participants"][:1]
+    body["multimedia"] = []
+    saved = put_record(client, body, accounts["alice"]).json()
+    assert [p["scope"] for p in saved["participants"]] == ["occurrence"]
+
+
 def test_admin_assignment_and_curator_review(client, accounts):
     body = record_bundle()
     body["owner_id"] = accounts["bob"]["id"]
@@ -153,6 +235,57 @@ def test_admin_assignment_and_curator_review(client, accounts):
     body["occurrence"]["occurrence_remarks"] = "Información adicional"
     updated = put_record(client, body, accounts["bob"])
     assert updated.status_code == 200 and updated.json()["status"] == "pending"
+
+
+def test_curation_queue_and_review_update_by_decision_id(client, accounts):
+    body = record_bundle()
+    saved = put_record(client, body, accounts["alice"]).json()
+    occurrence_id = saved["occurrence_id"]
+    assert client.get("/curation/queue", headers=accounts["alice"]["headers"]).status_code == 403
+    assert client.get(f"/occurrences/{occurrence_id}/curation", headers=accounts["viewer"]["headers"]).status_code == 403
+
+    pending = client.get("/curation/queue?status=pending", headers=accounts["curator"]["headers"])
+    assert pending.status_code == 200
+    assert pending.json()["total"] == 1
+    item = pending.json()["items"][0]
+    assert item["occurrence_id"] == occurrence_id and item["status"] == "pending"
+    assert item["decision_id"] and item["editable"] is True
+
+    detail = client.get(f"/occurrences/{occurrence_id}/curation", headers=accounts["curator"]["headers"]).json()
+    decision_id = detail["curation"]["decision_id"]
+    assert detail["curation"]["editable"] is True and len(detail["curation"]["history"]) == 1
+
+    rejected = client.patch(f"/curations/{decision_id}",
+                            json={"status": "rejected", "review_note": "Falta la fotografía del pileo"},
+                            headers=accounts["curator"]["headers"])
+    assert rejected.status_code == 200, rejected.text
+    assert rejected.json()["status"] == "rejected" and rejected.json()["review_note"] == "Falta la fotografía del pileo"
+    assert client.get("/curation/queue?status=pending", headers=accounts["curator"]["headers"]).json()["total"] == 0
+    rejected_queue = client.get("/curation/queue?status=rejected", headers=accounts["curator"]["headers"]).json()
+    assert rejected_queue["total"] == 1 and rejected_queue["items"][0]["decision_status"] == "rejected"
+
+    # The original decision is kept as history and can no longer be edited.
+    assert client.patch(f"/curations/{decision_id}", json={"status": "verified"},
+                        headers=accounts["curator"]["headers"]).status_code == 409
+    assert client.patch(f"/occurrences/{occurrence_id}/curation", json={"status": "verified"},
+                        headers=accounts["curator"]["headers"]).status_code == 409
+    detail = client.get(f"/occurrences/{occurrence_id}/curation", headers=accounts["curator"]["headers"]).json()
+    assert detail["curation"]["editable"] is False and len(detail["curation"]["history"]) == 2
+
+    # The researcher edits and resubmits; the observation returns to the queue.
+    body["occurrence"]["occurrence_remarks"] = "Corregido después de la revisión"
+    assert put_record(client, body, accounts["alice"]).json()["status"] == "pending"
+    pending = client.get("/curation/queue?status=pending", headers=accounts["curator"]["headers"]).json()
+    assert pending["total"] == 1 and pending["items"][0]["editable"] is True
+
+    verified = client.patch(f"/occurrences/{occurrence_id}/curation", json={"status": "verified", "review_note": "Verificado"},
+                            headers=accounts["curator"]["headers"])
+    assert verified.status_code == 200 and verified.json()["status"] == "verified"
+    assert client.patch(f"/occurrences/{occurrence_id}/curation",
+                        json={"status": "rejected", "review_note": "Cambio de opinión"},
+                        headers=accounts["curator"]["headers"]).status_code == 409
+    verified_queue = client.get("/curation/queue?status=verified", headers=accounts["curator"]["headers"]).json()
+    assert verified_queue["total"] == 1 and verified_queue["items"][0]["editable"] is False
 
 
 def test_failed_photo_batch_rolls_back_all_entities_and_files(client, accounts):

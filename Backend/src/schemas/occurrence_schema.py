@@ -22,6 +22,14 @@ class OccurrenceInput(BaseModel):
     associated_references: str | None = None
 
 
+class OccurrenceData(OccurrenceInput):
+    """Occurrence payload used inside the complete record form."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    occurrence_id: uuid.UUID
+
+
 class OccurrenceResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

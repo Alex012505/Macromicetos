@@ -16,21 +16,6 @@ BASIS_OF_RECORD_ENUM = SQLEnum(
 )
 OCCURRENCE_STATUS_ENUM = SQLEnum('present', 'absent', name="occurrence_status_enum", create_type=False)
 ID_QUALIFIER_ENUM = SQLEnum('cf.', 'aff.', 'sp.', 'ssp.', 'none', name="id_qualifier_enum", create_type=False)
-SUBSTRATE_ENUM = SQLEnum(
-    'Soil', 'Humus', 'Grounds', 'Floor', 'FertilizedLand', 'Grasslands', 'Paddocks',
-    'Litter', 'LeafLitter', 'Leaves', 'VegetableDebris', 'FernPetioles',
-    'DeadWood', 'DecayingWood', 'VeryDecomposedFallenWood', 'HalfBuriedWood',
-    'DeadWoodFromWoodyPlants', 'WoodRemains', 'Wood', 'Hardwood',
-    'BurnedLog', 'FreshlyBurnedLogs', 'DecayingLogs', 'FallenLogs',
-    'Logs', 'FallenOrStandingTrunks', 'LiveTreeTrunks', 'StumpAttachedToTheGround', 'Bunk',
-    'Branches', 'LargeFallenDeadBranches', 'MediumFallenDeadBranches',
-    'SmallFallenDeadBranches', 'LiveOrDeadBranchesOfDeciduousTrees', 'DecayingBranchesAndLeaves',
-    'DecomposingBamboo', 'DecayingGuadua',
-    'LivingWood', 'TreeParasite', 'CultivatedPlantMaterial', 'Roots', 'Stems',
-    'PineCones', 'Dung', 'HorseManure', 'BeefManure',
-    'AssociatedWithMoss', 'OtherDecayingAgaricals', 'Stubble', 'Debris', 'Other',
-    name="substrate_enum", create_type=False,
-)
 
 
 class Occurrence(Base):
@@ -56,7 +41,8 @@ class Occurrence(Base):
     identification_qualifier: Mapped[str | None] = mapped_column(ID_QUALIFIER_ENUM, default="none")
     identified_by: Mapped[str | None] = mapped_column(Text)
     date_identified: Mapped[dt.date | None] = mapped_column(Date)
-    substrate: Mapped[str | None] = mapped_column(SUBSTRATE_ENUM)
+    # Texto libre: el formulario pide "Sustrato" sin lista cerrada.
+    substrate: Mapped[str | None] = mapped_column(Text)
     associated_organisms: Mapped[str | None] = mapped_column(Text)
     associated_references: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[object] = mapped_column(DateTime(timezone=True), server_default=func.now())

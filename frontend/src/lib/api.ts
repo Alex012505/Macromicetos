@@ -9,6 +9,7 @@ export const config = {
   loginPath: import.meta.env.VITE_LOGIN_PATH || '/auth/login-json',
   occurrencesPath: import.meta.env.VITE_OCCURRENCES_LIST_PATH ?? '/occurrences',
   curatePath: import.meta.env.VITE_CURATE_PATH ?? '/occurrences/{id}/curation',
+  curationQueuePath: import.meta.env.VITE_CURATION_QUEUE_PATH ?? '/curation/queue',
   usersPath: import.meta.env.VITE_USERS_PATH ?? '/users',
   userUpdatePath: import.meta.env.VITE_USER_UPDATE_PATH ?? '/users/{id}',
   refreshPath: import.meta.env.VITE_REFRESH_PATH || '',
@@ -83,6 +84,12 @@ export const api = {
   async taxon(taxonId: string) { return normalizeTaxon(await http.request(`/taxa/${encodeURIComponent(taxonId)}`)); },
   async occurrences() { return config.occurrencesPath ? unwrapList(await http.request(config.occurrencesPath)).map(normalizeOccurrence) : []; },
   async occurrence(occurrenceId: string) { return normalizeOccurrence(await http.request(`/occurrences/${encodeURIComponent(occurrenceId)}`)); },
+  async curationQueue(status: Exclude<Status, 'unknown'> = 'pending') {
+    if (!config.curationQueuePath) throw new ApiError('El backend debe definir la cola de curaduría.');
+    const path = config.curationQueuePath;
+    const data = await http.request(`${path}${path.includes('?') ? '&' : '?'}status=${encodeURIComponent(status)}`);
+    return { total: Number(data?.total ?? 0), items: unwrapList(data).map(normalizeOccurrence) };
+  },
   async users() { return config.usersPath ? unwrapList(await http.request(config.usersPath)).map(normalizeUser) : []; },
   async updateUserRole(userId: string, role: Role) {
     if (!config.userUpdatePath) throw new ApiError('El backend debe definir la actualización de roles.');

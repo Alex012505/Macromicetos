@@ -14,10 +14,11 @@ export default function TaxonForm({ existing, initial, ownerId, onSave, onCancel
       const name = v.scientificName.trim().replace(/\s+/g, ' '), rank = v.rank || 'species';
       if (['species', 'subspecies', 'variety'].includes(rank) && name.split(/\s+/).length < 2) throw new Error('Escribe al menos el género y el epíteto para este rango.');
       if (!name || !v.kingdom.trim()) throw new Error('Completa el nombre científico y el reino.');
-      if (v.sources?.some(s => s.year && !Number.isInteger(Number(s.year)))) throw new Error('El año bibliográfico debe ser un número entero.');
+      if (v.sources?.some(s => s.year && (!Number.isInteger(Number(s.year)) || Number(s.year) < 1753 || Number(s.year) > 2100))) throw new Error('El año bibliográfico debe ser un entero entre 1753 y 2100.');
       if (existing.some(t => t.id !== v.id && t.scientificName.toLowerCase() === name.toLowerCase() && (t.rank || 'species') === rank)) throw new Error('Este nombre y rango ya existen en el catálogo.');
       validateMorphology(v.morphology);
       if (v.knowledge?.some(s => !s.consentGiven)) throw new Error('Para guardar una entrevista es necesario registrar el consentimiento otorgado. Si no lo tienes, retira esa entrevista.');
+      if (v.knowledge?.some(s => s.uses.some(u => !u.useCategory))) throw new Error('Cada uso reportado necesita una categoría.');
       setBusy(true); await onSave({ ...v, rank, scientificName: name, genus: v.genus.trim() || name.split(' ')[0], specificEpithet: v.specificEpithet || (rank === 'species' ? name.split(' ')[1] : ''), status: 'pending' });
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }

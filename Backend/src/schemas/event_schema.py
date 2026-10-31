@@ -15,6 +15,14 @@ class EventInput(BaseModel):
     event_remarks: str | None = None
 
 
+class EventData(EventInput):
+    """Event payload used inside the complete record form."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    event_id: uuid.UUID
+
+
 class EventResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

@@ -12,7 +12,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 PK = lambda: PGUUID(as_uuid=True)  # noqa: E731
 
 USER_ROLE_ENUM = SQLEnum(
-    'admin', 'curator', 'analyst', 'viewer', 
+    'admin', 'curator', 'field_collector', 'analyst', 'viewer',
     name="user_role_enum", 
     create_type=False
 )

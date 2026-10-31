@@ -38,7 +38,7 @@ export interface EthnoSurvey {
   occupation?: string; stateProvince?: string; municipality?: string; village?: string; remarks?: string;
   knowsFungi: boolean; localName?: string; learningSource?: string; recognitionCues?: string;
   foundInPlaces?: string; seasonality?: string; months?: string; safetyPractices?: string;
-  mythsStories?: string; culturalIdentity?: string; uses: EthnoUse[];
+  mythsStories?: string; culturalIdentity?: string; recommendations?: string; uses: EthnoUse[];
 }
 export interface Occurrence {
   ownerId?: string;

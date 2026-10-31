@@ -19,6 +19,14 @@ class MorphologyInput(BaseModel):
         return self
 
 
+class MorphologyData(MorphologyInput):
+    """Morphology payload used inside the complete forms."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    measurement_value: str = Field(min_length=1, max_length=2000)
+
+
 class MorphologyResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
