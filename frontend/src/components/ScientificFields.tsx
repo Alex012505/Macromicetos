@@ -1,6 +1,33 @@
 import type { Measurement, MorphologyFact, Participant, ScientificSource, EthnoSurvey, EthnoUse } from '../types';
 import { morphologyTypes } from '../lib/morphology.mjs';
 
+const MORPHOLOGY_DICT: Record<string, string[] | "medida"> = {
+  // --- VARIABLES CUALITATIVAS (Dropdowns extraídos del CSV) ---
+  'Tipo de himenio': ['Laminar', 'Poroide', 'Hidnoide/dentado', 'Plegado', 'Liso', 'Tubular', 'Apotecial', 'Peritecial', 'Gasteroide', 'Gelatinoso', 'Claviforme', 'Coraloide', 'Gleba', 'Peridio/peridiolos', 'Otro'],
+  'Adherencia de láminas': ['Libres', 'Adnatas/adnadas', 'Adnexas/anexas', 'Sinuadas', 'Escotadas', 'Decurrentes', 'Adherentes', 'Libres a anexas', 'Adnatas a decurrentes', 'Adnatas a sinuadas', 'Otra'],
+  'Característica de láminas': ['Lamélulas presentes', 'Intervenosas', 'Anastomosadas', 'Ceráceas', 'Ventricosas', 'Gruesas', 'Delgadas', 'Fimbriadas', 'Otra'],
+  'Densidad de láminas': ['Distantes', 'Subdistantes', 'Apretadas', 'Muy apretadas', 'Numerosas', 'Espaciadas', 'Otra/no especificada'],
+  'Forma de poros': ['Redondos', 'Circulares', 'Angulares', 'Hexagonales', 'Alargados', 'Laberínticos/daedaloides', 'Irregulares', 'Dentados/irpicoides', 'Tubulares', 'Otra'],
+  'Tamaño de poros': ['Muy pequeños', 'Pequeños', 'Medianos', 'Grandes', 'Muy grandes', 'No especificado'],
+  'Forma de píleo': ['Globoso', 'Subgloboso', 'Ovoide', 'Cónico', 'Campanulado', 'Convexo', 'Plano/aplanado', 'Deprimido', 'Infundibuliforme', 'Cupuliforme', 'Discoide', 'Circular', 'Semicircular', 'Reniforme', 'Flabeliforme', 'Conchado', 'Umbilicado', 'Umbonado', 'Lobulado', 'Rosetiforme', 'Irregular', 'Resupinado', 'Efuso-reflejo', 'Otra'],
+  'Tamaño de píleo': ['Pequeño', 'Mediano', 'Grande', 'Muy grande', 'Otro/no especificado'],
+  'Superficie de píleo': ['Lisa/glabra', 'Fibrillosa', 'Sedosa', 'Escamosa', 'Tomentosa', 'Vellosa', 'Hirsuta', 'Aterciopelada/velutinosa', 'Rugosa', 'Granulosa', 'Verrugosa', 'Reticulada', 'Estriada', 'Plegada', 'Agrietada/areolada', 'Zonada', 'Higrofana', 'Viscosa', 'Gelatinosa', 'Cerosa', 'Pulverulenta/pruinosa', 'Lanosa/algodonosa', 'Coriácea', 'Brillante/barnizada', 'Otra'],
+  'Margen de píleo': ['Entero', 'Ondulado', 'Estriado', 'Sulcado', 'Lobulado', 'Incurvado', 'Enrollado', 'Recurvado', 'Fimbriado', 'Ciliado', 'Piloso', 'Lacerado/dividido', 'Irregular', 'Translúcido-estriado', 'Otro'],
+  'Color de píleo': ['Blanco', 'Crema', 'Amarillo', 'Ocre', 'Beige', 'Naranja', 'Rojo', 'Rosado', 'Salmón', 'Marrón/café', 'Pardo', 'Canela', 'Gris', 'Negro', 'Verde', 'Oliva', 'Violeta/púrpura', 'Lila', 'Translúcido', 'Multicolor', 'Otro'],
+  'Tipo de anillo': ['Membranoso', 'Membranoso superior', 'Membranoso inferior', 'Móvil', 'Doble', 'Fibrilloso', 'Frágil', 'Persistente', 'Ascendente', 'Evanescente', 'Fragmentado', 'Otro'],
+  'Tipo de volva': ['Basal', 'Saciforme', 'Membranosa', 'Escamosa', 'Fragmentaria', 'Otra'],
+  'Presencia de anillo': ['Presente', 'Ausente', 'No reportado', 'No aplica'],
+  'Presencia de volva': ['Presente', 'Ausente', 'No reportado', 'No aplica'],
+  'Presencia de cambio de color': ['Presenta cambio', 'No presenta cambio', 'No reportado'],
+  'Reacción de cambio de color': ['Rosado', 'Pardo', 'Marrón', 'Amarillo', 'Verde', 'Oliva', 'Azul', 'Púrpura', 'Rojo', 'Oscurecimiento/negro', 'Naranja', 'Otro cambio', 'No especificado'],
+  'Tipo de sustrato': ['Suelo', 'Hojarasca', 'Madera', 'Troncos', 'Ramas', 'Tocones', 'Raíces', 'Restos vegetales', 'Humus', 'Estiércol/boñiga', 'Compost/mantillo', 'Musgo', 'Termitero/nido', 'Insectos/animales', 'Tejido vegetal vivo', 'Otro hongo', 'Esclerocios', 'Otro'],
+
+  // --- VARIABLES CUANTITATIVAS / LIBRES ---
+  'Diámetro del píleo': 'medida',
+  'Longitud del estípite': 'medida',
+  'Grosor del estípite': 'medida'
+};
+
 export interface FieldSpec { key: string; label: string; type?: string; required?: boolean; max?: number; min?: number; options?: string[][]; scientific?: boolean; step?: string }
 export function Fields({ fields, value, onChange }: { fields: FieldSpec[]; value: object; onChange: (key: string, value: string) => void }) {
   return <div className="form-grid">{fields.map(f => {
@@ -9,15 +36,93 @@ export function Fields({ fields, value, onChange }: { fields: FieldSpec[]; value
     return <label className={`field ${f.type === 'textarea' ? 'span-2' : ''}`} key={f.key}>{f.label}{f.required ? ' *' : ''}{f.options ? <select {...props}>{f.options.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select> : f.type === 'textarea' ? <textarea {...props} rows={3} maxLength={f.max || 4000} /> : <input {...props} type={f.type || 'text'} min={f.min} max={f.type === 'number' ? f.max : undefined} step={f.type === 'number' ? f.step || 'any' : undefined} maxLength={f.type !== 'number' ? f.max || 300 : undefined} />}</label>;
   })}</div>;
 }
+
+
 export function MorphologyEditor({ value, onChange }: { value: MorphologyFact[]; onChange: (v: MorphologyFact[]) => void }) {
-  const update = (i: number, key: string, v: string) => onChange(value.map((m, j) => j === i ? { ...m, [key]: v } : m));
-  return <div className="repeating-fields"><p className="muted">Registra únicamente los rasgos observados. Cada rasgo se admite una vez; los rangos como 5–8 se conservan como texto.</p>{value.map((m, i) => <fieldset className="entry-card" key={i}><legend>Rasgo {i + 1}</legend><Fields fields={[
-    { key: 'type', label: 'Rasgo', required: true, options: morphologyTypes.filter(([key]) => key === m.type || !value.some(v => v.type === key)) },
-    { key: 'value', label: 'Valor o descripción', required: true },
-    { key: 'unit', label: 'Unidad', options: [['', 'Sin unidad (descripción)'], ['cm', 'cm'], ['mm', 'mm']] },
-    { key: 'determinedDate', label: 'Fecha de evaluación', type: 'date' }, { key: 'remarks', label: 'Notas del rasgo', type: 'textarea' },
-  ]} value={m} onChange={(key, v) => update(i, key, v)} /><button className="text-button danger" type="button" onClick={() => onChange(value.filter((_, j) => i !== j))}>Quitar rasgo {i + 1}</button></fieldset>)}<button type="button" className="btn small" disabled={value.length >= morphologyTypes.length} onClick={() => onChange([...value, { type: morphologyTypes.find(([type]) => !value.some(m => m.type === type))![0], value: '', unit: '' }])}>Añadir rasgo morfológico</button></div>;
+  const update = (i: number, key: string, v: string) => {
+    // Si cambia el tipo de rasgo, limpiamos el valor anterior
+    if (key === 'type') {
+      onChange(value.map((m, j) => j === i ? { ...m, [key]: v, value: '', unit: '' } : m));
+    } else {
+      onChange(value.map((m, j) => j === i ? { ...m, [key]: v } : m));
+    }
+  };
+
+  // Convertimos el diccionario en opciones para el primer selector
+  const rasgoOptions = Object.keys(MORPHOLOGY_DICT).map(k => [k, k]);
+
+  return (
+    <div className="repeating-fields">
+      <p className="muted">Registra únicamente los rasgos observados. Cada rasgo se admite una vez; los rangos como 5–8 se conservan como texto.</p>
+      
+      {value.map((m, i) => {
+        // Determinar cómo renderizar el campo de "Valor o descripción"
+        const configValue = MORPHOLOGY_DICT[m.type];
+        const isCategorical = Array.isArray(configValue);
+        
+        let valueFieldOptions: string[][] | undefined = undefined;
+        if (isCategorical) {
+          // Genera el formato de options [['Blanco', 'Blanco'], ...]
+          valueFieldOptions = [['', 'Selecciona una opción'], ...configValue.map(val => [val, val])];
+        }
+
+        return (
+          <fieldset className="entry-card" key={i}>
+            <legend>Rasgo {i + 1}</legend>
+            <Fields 
+              fields={[
+                { 
+                  key: 'type', 
+                  label: 'Rasgo', 
+                  required: true, 
+                  // Filtra para no repetir rasgos ya seleccionados
+                  options: [['', 'Selecciona un rasgo'], ...rasgoOptions.filter(([key]) => key === m.type || !value.some(v => v.type === key))]
+                },
+                { 
+                  key: 'value', 
+                  label: 'Valor o descripción', 
+                  required: true, 
+                  // Si es categórico le inyectamos las opciones, si no, se vuelve input de texto
+                  options: valueFieldOptions 
+                },
+                { 
+                  key: 'unit', 
+                  label: 'Unidad', 
+                  // Si es categórico (ej. Color), no necesita unidad
+                  options: isCategorical 
+                    ? [['', 'Sin unidad (descripción)']] 
+                    : [['', 'Sin unidad'], ['cm', 'cm'], ['mm', 'mm']] 
+                },
+                { key: 'determinedDate', label: 'Fecha de evaluación', type: 'date' }, 
+                { key: 'remarks', label: 'Notas del rasgo', type: 'textarea' },
+              ]} 
+              value={m} 
+              onChange={(key, v) => update(i, key, v)} 
+            />
+            <button className="text-button danger" type="button" onClick={() => onChange(value.filter((_, j) => i !== j))}>
+              Quitar rasgo {i + 1}
+            </button>
+          </fieldset>
+        );
+      })}
+      
+      <button 
+        type="button" 
+        className="btn small" 
+        disabled={value.length >= Object.keys(MORPHOLOGY_DICT).length} 
+        onClick={() => {
+          // Busca el primer rasgo disponible que no se haya usado
+          const firstAvailable = Object.keys(MORPHOLOGY_DICT).find(type => !value.some(m => m.type === type)) || '';
+          onChange([...value, { type: firstAvailable, value: '', unit: '' }]);
+        }}
+      >
+        Añadir rasgo morfológico
+      </button>
+    </div>
+  );
 }
+
+
 export function MeasurementEditor({ value, onChange }: { value: Measurement[]; onChange: (v: Measurement[]) => void }) {
   return <div className="repeating-fields"><p className="muted">Microclima y otras medidas: temperatura, humedad, pH o dimensiones adicionales. Indica si corresponden a la salida o al espécimen.</p>{value.map((m, i) => <fieldset className="entry-card" key={i}><legend>Medida {i + 1}</legend><Fields value={m} fields={[
     { key: 'name', label: 'Variable', required: true, max: 40 }, { key: 'value', label: 'Valor', required: true }, { key: 'unit', label: 'Unidad', max: 24 },

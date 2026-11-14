@@ -12,6 +12,18 @@ export default function TaxonForm({ existing, initial, ownerId, onSave, onCancel
     e.preventDefault(); setError('');
     try {
       const name = v.scientificName.trim().replace(/\s+/g, ' '), rank = v.rank || 'species';
+      if (
+        !name || 
+        !v.kingdom.trim() || 
+        !v.phylum.trim() || 
+        !v.className.trim() || 
+        !v.order.trim() || 
+        !v.family.trim() || 
+        !v.genus.trim() 
+        
+      ) {
+        throw new Error('Por favor completa todos los campos taxonómicos obligatorios.');
+      }
       if (['species', 'subspecies', 'variety'].includes(rank) && name.split(/\s+/).length < 2) throw new Error('Escribe al menos el género y el epíteto para este rango.');
       if (!name || !v.kingdom.trim()) throw new Error('Completa el nombre científico y el reino.');
       if (v.sources?.some(s => s.year && (!Number.isInteger(Number(s.year)) || Number(s.year) < 1753 || Number(s.year) > 2100))) throw new Error('El año bibliográfico debe ser un entero entre 1753 y 2100.');
@@ -25,8 +37,8 @@ export default function TaxonForm({ existing, initial, ownerId, onSave, onCancel
   return <form onSubmit={submit}><p className="form-intro">Completa la taxonomía y añade la información disponible. Los rasgos generales de la especie se guardan separados de las mediciones de los hallazgos.</p><fieldset disabled={busy} className="form-section"><Fields value={v} onChange={set} fields={[
     { key: 'scientificName', label: 'Nombre científico', required: true, scientific: true }, { key: 'commonName', label: 'Nombre común' },
     { key: 'rank', label: 'Rango taxonómico', required: true, options: [['species', 'Especie'], ['genus', 'Género'], ['subspecies', 'Subespecie'], ['variety', 'Variedad']] },
-    { key: 'kingdom', label: 'Reino', required: true }, { key: 'phylum', label: 'División' }, { key: 'className', label: 'Clase' }, { key: 'order', label: 'Orden' }, { key: 'family', label: 'Familia' },
-    { key: 'genus', label: 'Género', scientific: true }, { key: 'specificEpithet', label: 'Epíteto específico', scientific: true }, { key: 'externalTaxonId', label: 'Identificador taxonómico externo', max: 40 },
+    { key: 'kingdom', label: 'Reino', required: true }, { key: 'phylum', label: 'División' , required: true}, { key: 'className', label: 'Clase', required: true }, { key: 'order', label: 'Orden', required: true }, { key: 'family', label: 'Familia' , required: true},
+    { key: 'genus', label: 'Género', scientific: true, required: true }, { key: 'specificEpithet', label: 'Epíteto específico', scientific: true }, { key: 'externalTaxonId', label: 'Identificador taxonómico externo', max: 40 },
     { key: 'remarks', label: 'Notas taxonómicas', type: 'textarea' },
   ]} /><section className="editor-section"><h3>Morfología general de la especie</h3><MorphologyEditor value={v.morphology || []} onChange={items => set('morphology', items)} /></section><section className="editor-section"><h3>Fuentes bibliográficas</h3><SourcesEditor value={v.sources || []} onChange={items => set('sources', items)} /></section><section className="editor-section"><h3>Responsables de la ficha</h3><ParticipantsEditor taxon value={v.participants || []} onChange={items => set('participants', items)} /></section><section className="editor-section"><h3>Conocimiento socioecológico</h3><KnowledgeEditor value={v.knowledge || []} onChange={items => set('knowledge', items)} /></section></fieldset>{error && <Notice error>{error}</Notice>}<div className="form-actions"><button className="btn" type="button" onClick={onCancel} disabled={busy}>Cancelar</button><button className="btn primary" disabled={busy}>{busy ? 'Guardando…' : initial ? 'Guardar ficha' : 'Añadir especie'}</button></div></form>;
 }

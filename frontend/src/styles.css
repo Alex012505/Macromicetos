@@ -393,3 +393,24 @@ th { font-size: .75rem; color: #656575; }
 .form-stepper.extended-stepper { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .form-stepper.extended-stepper > span { min-width: 0; }
 @media (max-width: 540px) { .form-stepper.extended-stepper { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Filtros taxonómicos compartidos por el catálogo y el mapa */
+.taxon-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 12px; }
+.taxon-filters label { display: flex; flex-direction: column; gap: 4px; flex: 1 1 118px; min-width: 110px; font-size: .66rem; color: #656575; }
+.taxon-filters select { min-height: 34px; padding: 6px 8px; font-size: .74rem; }
+.taxon-filters-title { flex: 1 1 100%; margin: 0; font-size: .7rem; font-weight: 600; color: var(--ink); letter-spacing: .2px; }
+.taxon-filters > .text-button { flex: 1 1 100%; align-self: flex-start; font-size: .68rem; padding: 0; }
+.filter-bar .taxon-filters { flex: 1 1 100%; padding-top: 13px; border-top: 1px solid #eeecf3; }
+.map-filters .taxon-filters { flex-direction: column; align-items: stretch; gap: 12px; margin-bottom: 18px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+.map-filters .taxon-filters label { flex: none; min-width: 0; }
+.map-filters .taxon-filters select { min-height: 32px; padding: 5px 8px; margin-top: 0; }
+.map-filters .taxon-filters > .text-button { padding: 0; }
+@media (max-width: 800px) {
+  .map-filters .taxon-filters { grid-column: span 2; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .map-filters .taxon-filters-title, .map-filters .taxon-filters > .text-button { grid-column: span 2; }
+}
+@media (max-width: 540px) {
+  .map-filters .taxon-filters { grid-template-columns: 1fr; }
+  .map-filters .taxon-filters-title, .map-filters .taxon-filters > .text-button { grid-column: span 1; }
+  .filter-bar .taxon-filters label { flex: 1 1 44%; }
+}

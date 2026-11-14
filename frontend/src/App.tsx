@@ -9,9 +9,12 @@ import { api, config, http } from './lib/api';
 import { loadDemo, saveDemo } from './data/demo';
 import { canAccessPage, canEditOccurrence, capabilitiesFor } from './lib/permissions.mjs';
 import { assignOccurrenceForSession } from './lib/record-ownership.mjs';
+import { EMPTY_TAXON_FILTERS, applyTaxonFilter, matchesTaxonFilters } from './lib/taxon-filters.mjs';
+import { searchTaxa } from './lib/taxon-search.mjs';
 import { roleNames, statusNames, type Dataset, type Occurrence, type Status, type Taxon, type User, type PendingPhoto } from './types';
 import { Busy, Empty, Modal, Notice, Photo, StatusBadge } from './components/UI';
 import OccurrenceMap from './components/OccurrenceMap';
+import TaxonFilters from './components/TaxonFilters';
 import AuthScreen from './components/AuthScreen';
 import RecordForm from './components/RecordForm';
 import TaxonForm from './components/TaxonForm';
@@ -44,6 +47,7 @@ export default function App() {
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
   const [query, setQuery] = useState('');
+  const [taxonFilters, setTaxonFilters] = useState<Record<string, string>>(EMPTY_TAXON_FILTERS);
   const [mobileNav, setMobileNav] = useState(false);
   const [modal, setModal] = useState<'record' | 'taxon' | 'upload' | null>(null);
   const [editRecord, setEditRecord] = useState<Occurrence | undefined>();
@@ -73,6 +77,7 @@ export default function App() {
   function endSession() {
     datasetRequest.current++;
     http.setTokens(); setUser(null); setData(blank); setLoading(false); setError('');
+    setTaxonFilters({ ...EMPTY_TAXON_FILTERS });
     setModal(null); setDetailRecord(undefined); setEditRecord(undefined); setEditTaxon(undefined);
     setUploadRecordId(''); setMobileNav(false);
   }
@@ -123,7 +128,8 @@ export default function App() {
   }, [user?.expiresAt]);
   useEffect(() => { document.title = `${route.speciesId ? 'Ficha de especie' : pageTitles[route.page]} · Macromicetos`; }, [route]);
   useEffect(() => { if (!toast) return; const timer = setTimeout(() => setToast(''), 5500); return () => clearTimeout(timer); }, [toast]);
-  const visibleTaxa = useMemo(() => data.taxa.filter(t => `${t.scientificName} ${t.commonName} ${t.family}`.toLowerCase().includes(query.toLowerCase())), [data.taxa, query]);
+  const updateTaxonFilter = (key: string, value: string) => setTaxonFilters(current => applyTaxonFilter(current, key, value));
+  const resetTaxonFilters = () => setTaxonFilters({ ...EMPTY_TAXON_FILTERS });
   const selected = data.taxa.find(t => t.id === route.speciesId);
   function newRecord() { if (canWrite) { setEditRecord(undefined); setModal('record'); } }
   function editOccurrence(o: Occurrence) {
@@ -221,8 +227,8 @@ export default function App() {
               <section className="contribute-panel"><span className="contribute-icon"><Microscope size={23} /></span><div><h3>{canWrite ? 'Documentación de campo' : canCurate ? 'Revisión científica' : 'Consulta para el estudio'}</h3><p>{scopeText}</p>{canWrite ? <button className="text-button" onClick={newRecord}>Registrar un hallazgo <Plus size={15} /></button> : <button className="text-button" onClick={() => navigate(canCurate ? 'curaduria' : 'mapa')}>{canCurate ? 'Abrir cola de revisión' : 'Explorar observaciones en el mapa'}<ChevronRight size={15} /></button>}</div></section></div></div>
             <div className="section-head highlights-head"><div><span className="eyebrow">DEL CATÁLOGO</span><h2>Especies del catálogo</h2></div><button className="text-button" onClick={() => navigate('especies')}>Ver catálogo <ChevronRight size={15} /></button></div><div className="highlight-grid">{data.taxa.slice(0, 4).map(t => <SpeciesCard key={t.id} taxon={t} count={data.occurrences.filter(o => o.taxonId === t.id).length} onClick={() => openSpecies(t.id)} />)}</div>
           </>}
-          {route.page === 'especies' && <Catalog taxa={visibleTaxa} records={data.occurrences} query={query} setQuery={setQuery} onSelect={openSpecies} onCreate={canWrite ? () => { setEditTaxon(undefined); setModal('taxon'); } : undefined} />}
-          {route.page === 'mapa' && <MapView data={data} onSelect={openOccurrence} />}
+          {route.page === 'especies' && <Catalog taxa={data.taxa} records={data.occurrences} query={query} setQuery={setQuery} filters={taxonFilters} onFilterChange={updateTaxonFilter} onReset={resetTaxonFilters} onSelect={openSpecies} onCreate={canWrite ? () => { setEditTaxon(undefined); setModal('taxon'); } : undefined} />}
+          {route.page === 'mapa' && <MapView data={data} filters={taxonFilters} onFilterChange={updateTaxonFilter} onReset={resetTaxonFilters} onSelect={openOccurrence} />}
           {route.page === 'galeria' && <Gallery data={data} onSelect={openOccurrence} onUpload={canWrite ? () => openUpload() : undefined} />}
           {route.page === 'registros' && <RecordsView ownOnly={role === 'analyst'} data={{ ...data, occurrences: role === 'analyst' ? ownRecords : data.occurrences }} onSelect={editOccurrence} onCreate={newRecord} onFetched={o => { if (!data.occurrences.some(r => r.id === o.id)) setData({ ...data, occurrences: [o, ...data.occurrences] }); }} />}
           {route.page === 'curaduria' && <Curation data={data} onReview={review} onSpecies={openSpecies} />}
@@ -267,26 +273,40 @@ function SpeciesCard({ taxon: t, count, onClick }: { taxon: Taxon; count: number
 function RecordTable({ records, taxa, onSelect }: { records: Occurrence[]; taxa: Taxon[]; onSelect: (o: Occurrence) => void }) {
   return records.length ? <div className="table-scroll"><table><thead><tr><th>Especie</th><th>Localización</th><th>Fecha</th><th>Estado</th><th><span className="sr-only">Acción</span></th></tr></thead><tbody>{records.map(o => { const t = taxa.find(t => t.id === o.taxonId); return <tr key={o.id}><td><button className="species-cell" onClick={() => onSelect(o)}><Photo src={o.images[0] || t?.image} name={t?.scientificName || 'Ocurrencia'} /><span><strong className="scientific-name">{t?.scientificName || 'Sin identificación'}</strong><small>{t?.commonName || o.recordedBy || o.author || 'Registro de campo'}</small></span></button></td><td><span className="location-cell"><MapPin size={13} />{o.department || 'Sin localidad'}</span></td><td className="date-cell">{dateLabel(o.eventDate || o.date)}</td><td><StatusBadge status={o.status} /></td><td><button className="icon-btn" aria-label={`Abrir ${t?.scientificName || o.id}`} onClick={() => onSelect(o)}><ChevronRight size={17} /></button></td></tr>; })}</tbody></table></div> : <Empty title="Aún no hay observaciones">Los registros de campo aparecerán aquí cuando estén disponibles.</Empty>;
 }
-function Catalog({ taxa, records, query, setQuery, onSelect, onCreate }: { taxa: Taxon[]; records: Occurrence[]; query: string; setQuery: (q: string) => void; onSelect: (id: string) => void; onCreate?: () => void }) {
-  const [family, setFamily] = useState(''); const [order, setOrder] = useState('name');
+function Catalog({ taxa, records, query, setQuery, filters, onFilterChange, onReset, onSelect, onCreate }: { taxa: Taxon[]; records: Occurrence[]; query: string; setQuery: (q: string) => void; filters: Record<string, string>; onFilterChange: (key: string, value: string) => void; onReset: () => void; onSelect: (id: string) => void; onCreate?: () => void }) {
+  const [order, setOrder] = useState('name');
   const [layout, setLayout] = useState<'grid' | 'list'>('grid'); const [page, setPage] = useState(1);
-  const families = [...new Set(taxa.map(t => t.family).filter(Boolean))].sort();
-  const filtered = taxa.filter(t => !family || t.family === family).sort((a, b) => order === 'name' ? a.scientificName.localeCompare(b.scientificName) : records.filter(o => o.taxonId === b.id).length - records.filter(o => o.taxonId === a.id).length);
+  const counts = useMemo(() => records.reduce<Record<string, number>>((acc, o) => { if (o.taxonId) acc[o.taxonId] = (acc[o.taxonId] || 0) + 1; return acc; }, {}), [records]);
+  const filtered = useMemo(() => {
+    const list = searchTaxa(taxa, query).filter((t: Taxon) => matchesTaxonFilters(t, filters));
+    return order === 'name'
+      ? [...list].sort((a, b) => a.scientificName.localeCompare(b.scientificName, 'es'))
+      : [...list].sort((a, b) => (counts[b.id] || 0) - (counts[a.id] || 0));
+  }, [taxa, query, filters, order, counts]);
+  const filteredIds = useMemo(() => new Set(filtered.map(t => t.id)), [filtered]);
   const pages = Math.max(1, Math.ceil(filtered.length / 8)); const actualPage = Math.min(page, pages); const items = filtered.slice((actualPage - 1) * 8, actualPage * 8);
-  useEffect(() => setPage(1), [query, family, order]);
-  return <><PageHeader eyebrow="DIVERSIDAD FÚNGICA" title="Catálogo de macromicetos" description="Encuentra especies, explora su taxonomía y conoce sus observaciones."><div className="heading-actions"><ExportButtons scope="species" taxa={filtered} records={records.filter(o => filtered.some(t => t.id === o.taxonId))} />{onCreate && <button className="btn primary" onClick={onCreate}><Plus size={17} />Añadir especie</button>}</div></PageHeader>
-    <div className="filter-bar"><label className="search-input"><Search size={18} /><input aria-label="Buscar especies" placeholder="Buscar por nombre, especie o familia…" value={query} onChange={e => setQuery(e.target.value)} />{query && <button className="icon-btn" onClick={() => setQuery('')} aria-label="Limpiar búsqueda"><X size={15} /></button>}</label><select aria-label="Filtrar por familia" value={family} onChange={e => setFamily(e.target.value)}><option value="">Todas las familias</option>{families.map(f => <option key={f}>{f}</option>)}</select><select aria-label="Ordenar especies" value={order} onChange={e => setOrder(e.target.value)}><option value="name">Nombre: A–Z</option><option value="observations">Más observaciones</option></select><div className="view-switch"><button className={layout === 'grid' ? 'selected' : ''} aria-label="Vista de tarjetas" aria-pressed={layout === 'grid'} onClick={() => setLayout('grid')}><LayoutDashboard size={18} /></button><button className={layout === 'list' ? 'selected' : ''} aria-label="Vista de lista" aria-pressed={layout === 'list'} onClick={() => setLayout('list')}><ClipboardList size={18} /></button></div></div>
+  useEffect(() => setPage(1), [query, filters, order]);
+  return <><PageHeader eyebrow="DIVERSIDAD FÚNGICA" title="Catálogo de macromicetos" description="Encuentra especies, explora su taxonomía y conoce sus observaciones."><div className="heading-actions"><ExportButtons scope="species" taxa={filtered} records={records.filter(o => filteredIds.has(o.taxonId))} />{onCreate && <button className="btn primary" onClick={onCreate}><Plus size={17} />Añadir especie</button>}</div></PageHeader>
+    <div className="filter-bar"><label className="search-input"><Search size={18} /><input aria-label="Buscar especies" placeholder="Buscar por nombre, especie o familia…" value={query} onChange={e => setQuery(e.target.value)} />{query && <button className="icon-btn" onClick={() => setQuery('')} aria-label="Limpiar búsqueda"><X size={15} /></button>}</label><select aria-label="Ordenar especies" value={order} onChange={e => setOrder(e.target.value)}><option value="name">Nombre: A–Z</option><option value="observations">Más observaciones</option></select><div className="view-switch"><button className={layout === 'grid' ? 'selected' : ''} aria-label="Vista de tarjetas" aria-pressed={layout === 'grid'} onClick={() => setLayout('grid')}><LayoutDashboard size={18} /></button><button className={layout === 'list' ? 'selected' : ''} aria-label="Vista de lista" aria-pressed={layout === 'list'} onClick={() => setLayout('list')}><ClipboardList size={18} /></button></div><TaxonFilters taxa={taxa} value={filters} onChange={onFilterChange} onReset={onReset} /></div>
     <p className="results-label">{filtered.length} {filtered.length === 1 ? 'especie encontrada' : 'especies encontradas'}{query && ` para “${query}”`}</p>
-    {!filtered.length ? <Empty title="No encontramos especies">Prueba con otro nombre o cambia los filtros.</Empty> : layout === 'grid' ? <div className="catalog-grid">{items.map(t => <SpeciesCard key={t.id} taxon={t} count={records.filter(o => o.taxonId === t.id).length} onClick={() => onSelect(t.id)} />)}</div> : <section className="panel"><div className="table-scroll"><table><thead><tr><th>Especie</th><th>Familia</th><th>Observaciones</th><th>Estado</th></tr></thead><tbody>{items.map(t => <tr key={t.id}><td><button className="species-cell" onClick={() => onSelect(t.id)}><Photo src={t.image} name={t.scientificName} /><span><strong className="scientific-name">{t.scientificName}</strong><small>{t.commonName}</small></span></button></td><td>{t.family || 'Sin familia'}</td><td>{records.filter(o => o.taxonId === t.id).length}</td><td><StatusBadge status={t.status} /></td></tr>)}</tbody></table></div></section>}
+    {!filtered.length ? <Empty title="No encontramos especies">Prueba con otro nombre o cambia los filtros.</Empty> : layout === 'grid' ? <div className="catalog-grid">{items.map(t => <SpeciesCard key={t.id} taxon={t} count={counts[t.id] || 0} onClick={() => onSelect(t.id)} />)}</div> : <section className="panel"><div className="table-scroll"><table><thead><tr><th>Especie</th><th>Familia</th><th>Observaciones</th><th>Estado</th></tr></thead><tbody>{items.map(t => <tr key={t.id}><td><button className="species-cell" onClick={() => onSelect(t.id)}><Photo src={t.image} name={t.scientificName} /><span><strong className="scientific-name">{t.scientificName}</strong><small>{t.commonName}</small></span></button></td><td>{t.family || 'Sin familia'}</td><td>{counts[t.id] || 0}</td><td><StatusBadge status={t.status} /></td></tr>)}</tbody></table></div></section>}
     {filtered.length > 0 && <div className="pagination"><span>Mostrando {(actualPage - 1) * 8 + 1}–{Math.min(actualPage * 8, filtered.length)} de {filtered.length}</span><div><button className="btn small" disabled={actualPage === 1} onClick={() => setPage(actualPage - 1)} aria-label="Página anterior"><ChevronLeft size={16} /></button><span>{actualPage} / {pages}</span><button className="btn small" disabled={actualPage === pages} onClick={() => setPage(actualPage + 1)} aria-label="Página siguiente"><ChevronRight size={16} /></button></div></div>}</>;
 }
-function MapView({ data, onSelect }: { data: Dataset; onSelect: (o: Occurrence) => void }) {
-  const [department, setDepartment] = useState(''); const [family, setFamily] = useState(''); const [verified, setVerified] = useState(false); const [start, setStart] = useState(''); const [end, setEnd] = useState('');
-  const filtered = data.occurrences.filter(o => (!department || o.department === department) && (!verified || o.status === 'verified') && (!family || data.taxa.find(t => t.id === o.taxonId)?.family === family) && (!start || (o.eventDate || o.date) >= start) && (!end || (o.eventDate || o.date).slice(0, 10) <= end));
+function MapView({ data, filters, onFilterChange, onReset, onSelect }: { data: Dataset; filters: Record<string, string>; onFilterChange: (key: string, value: string) => void; onReset: () => void; onSelect: (o: Occurrence) => void }) {
+  const [department, setDepartment] = useState(''); const [verified, setVerified] = useState(false); const [start, setStart] = useState(''); const [end, setEnd] = useState('');
+  const taxaById = useMemo(() => new Map<string, Taxon>(data.taxa.map(t => [t.id, t] as [string, Taxon])), [data.taxa]);
+  const filtered = useMemo(() => data.occurrences.filter(o => {
+    const date = o.eventDate || o.date;
+    return matchesTaxonFilters(taxaById.get(o.taxonId), filters)
+      && (!department || o.department === department)
+      && (!verified || o.status === 'verified')
+      && (!start || date >= start)
+      && (!end || date.slice(0, 10) <= end);
+  }), [data.occurrences, taxaById, filters, department, verified, start, end]);
   const mapped = filtered.filter(o => o.lat != null && o.lng != null);
   return <><PageHeader eyebrow="OBSERVACIONES EN EL TERRITORIO" title="Distribución de observaciones" description="Recorre el mapa y selecciona una observación para abrir su ficha." />
     {!config.demo && !config.occurrencesPath && <Notice>La API actual no define una lista de ocurrencias. Configura esa ruta para visualizar los registros geográficos.</Notice>}
-    <div className="map-workspace panel"><aside className="map-filters"><h2><SlidersHorizontal size={18} />Filtros del mapa</h2><label>Departamento<select value={department} onChange={e => setDepartment(e.target.value)}><option value="">Todos los departamentos</option>{[...new Set(data.occurrences.map(o => o.department).filter(Boolean))].map(d => <option key={d}>{d}</option>)}</select></label><label>Familia<select value={family} onChange={e => setFamily(e.target.value)}><option value="">Todas las familias</option>{[...new Set(data.taxa.map(t => t.family).filter(Boolean))].map(f => <option key={f}>{f}</option>)}</select></label><label>Desde<input type="date" value={start} onChange={e => setStart(e.target.value)} /></label><label>Hasta<input type="date" min={start} value={end} onChange={e => setEnd(e.target.value)} /></label><label className="checkbox-label"><input type="checkbox" checked={verified} onChange={e => setVerified(e.target.checked)} />Solo verificados</label><button className="text-button" onClick={() => { setDepartment(''); setFamily(''); setStart(''); setEnd(''); setVerified(false); }}>Restablecer filtros</button><div className="map-legend"><h3>Leyenda</h3><span><i className="legend-dot verified" />Verificado</span><span><i className="legend-dot pending" />En revisión</span><span><i className="legend-dot rejected" />Otros estados</span></div><p className="muted">{mapped.length} puntos en el mapa{filtered.length !== mapped.length && ` · ${filtered.length - mapped.length} registros sin coordenadas`}</p></aside><div className="full-map"><OccurrenceMap records={filtered} taxa={data.taxa} onSelect={onSelect} /><span className="map-count">{config.demo ? 'Coordenadas de demostración' : `${mapped.length} observaciones`}</span></div></div>
+    <div className="map-workspace panel"><aside className="map-filters"><h2><SlidersHorizontal size={18} />Filtros del mapa</h2><TaxonFilters taxa={data.taxa} value={filters} onChange={onFilterChange} showTitle /><label>Departamento<select value={department} onChange={e => setDepartment(e.target.value)}><option value="">Todos los departamentos</option>{[...new Set(data.occurrences.map(o => o.department).filter(Boolean))].map(d => <option key={d}>{d}</option>)}</select></label><label>Desde<input type="date" value={start} onChange={e => setStart(e.target.value)} /></label><label>Hasta<input type="date" min={start} value={end} onChange={e => setEnd(e.target.value)} /></label><label className="checkbox-label"><input type="checkbox" checked={verified} onChange={e => setVerified(e.target.checked)} />Solo verificados</label><button className="text-button" onClick={() => { setDepartment(''); setStart(''); setEnd(''); setVerified(false); onReset(); }}>Restablecer filtros</button><div className="map-legend"><h3>Leyenda</h3><span><i className="legend-dot verified" />Verificado</span><span><i className="legend-dot pending" />En revisión</span><span><i className="legend-dot rejected" />Otros estados</span></div><p className="muted">{mapped.length} puntos en el mapa{filtered.length !== mapped.length && ` · ${filtered.length - mapped.length} registros sin coordenadas`}</p></aside><div className="full-map"><OccurrenceMap records={filtered} taxa={data.taxa} onSelect={onSelect} /><span className="map-count">{config.demo ? 'Coordenadas de demostración' : `${mapped.length} observaciones`}</span></div></div>
     <section className="panel map-results"><div className="section-head"><h2>Observaciones filtradas</h2><span>{filtered.length} resultados</span></div><RecordTable records={filtered} taxa={data.taxa} onSelect={onSelect} /></section></>;
 }
 function Gallery({ data, onSelect, onUpload }: { data: Dataset; onSelect: (record: Occurrence) => void; onUpload?: () => void }) {
