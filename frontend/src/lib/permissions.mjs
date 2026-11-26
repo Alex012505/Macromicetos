@@ -9,5 +9,6 @@ export function canAccessPage(role, page) {
   if (page === 'registros') return scope.write;
   if (page === 'curaduria') return scope.curate;
   if (page === 'usuarios') return scope.manageUsers;
+  if (page === 'entrevistas') return scope.write || scope.curate;
   return ['dashboard', 'especies', 'mapa', 'galeria', 'guia'].includes(page);
 }

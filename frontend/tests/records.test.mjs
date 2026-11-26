@@ -1,14 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { morphologyTypes, validateCoordinates, validateMorphology } from '../src/lib/morphology.mjs';
-import { recordPayload, taxonPayload, bundleForm, bundlePath, normalizeMorphology, normalizeParticipants } from '../src/lib/record-contract.mjs';
+import { recordPayload, taxonPayload, ethnoSurveyPayload, normalizeEthnoSurvey, bundleForm, bundlePath, normalizeMorphology, normalizeParticipants } from '../src/lib/record-contract.mjs';
 import { csvText, occurrenceRows, speciesRows } from '../src/lib/export-data.mjs';
 import { migrateOccurrence, migrateDemoUser } from '../src/lib/demo-migration.mjs';
+import { validateMeasurements } from '../src/lib/measurements.mjs';
 import { isPdfImageUrl } from '../src/lib/pdf-images.mjs';
 
 const morphology = [{ type: 'diametro_sombrero', value: '5–8', unit: 'cm', determinedDate: '2026-10-17', remarks: 'Medida en campo' }];
 const taxon = { id: 'taxon', scientificName: 'Pleurotus ostreatus', commonName: 'Orellana', kingdom: 'Fungi', phylum: 'Basidiomycota', className: 'Agaricomycetes', order: 'Agaricales', family: 'Pleurotaceae', genus: 'Pleurotus', specificEpithet: 'ostreatus', rank: 'species', remarks: 'Descripción, con "comillas"\ny salto', morphology, image: 'SECRET-IMAGE', knowledge: [{ private: 'SECRET-INTERVIEW' }] };
-const record = { id: 'record', taxonId: 'taxon', eventId: 'event', locationId: 'location', author: 'Identificador', recordedBy: 'Recolector', date: '2026-10-17', eventDate: '2026-10-15', lat: 0, lng: -73.5, country: 'CO', municipality: 'Villavicencio', department: 'Meta', locality: 'Sitio', uncertaintyM: 0, elevationM: 500, basisOfRecord: 'HumanObservation', substrate: 'Madera', habitat: 'Bosque', remarks: '', status: 'pending', images: ['SECRET-IMAGE'], morphology, measurements: [{ name: 'temperatura', value: '24', unit: '°C', scope: 'event' }], participants: [{ id: 'p1', givenName: 'Ana', displayName: 'Ana', contactEmail: 'SECRET-EMAIL', role: 'collector', scope: 'event' }] };
+const record = { id: 'record', taxonId: 'taxon', eventId: 'event', locationId: 'location', author: 'Identificador', recordedBy: 'Recolector', date: '2026-10-17', eventDate: '2026-10-15', lat: 0, lng: -73.5, country: 'CO', municipality: 'Villavicencio', department: 'Meta', locality: 'Sitio', uncertaintyM: 0, elevationM: 500, basisOfRecord: 'HumanObservation', substrate: 'Madera', habitat: 'Bosque', remarks: '', status: 'pending', images: ['SECRET-IMAGE'], morphology, measurements: [{ type: 'temperature', value: '24', unit: '°C', method: 'Estación portátil' }], participants: [{ id: 'p1', givenName: 'Ana', displayName: 'Ana', contactEmail: 'SECRET-EMAIL', role: 'collector', scope: 'event' }] };
 
 test('WGS84 preserves zero and rejects incomplete, nonfinite and out-of-range coordinates', () => {
   assert.deepEqual(validateCoordinates('0', '0'), { lat: 0, lng: 0 });
@@ -22,23 +23,50 @@ test('18 controlled morphology traits, uniqueness, required values and diameter 
   assert.throws(() => validateMorphology([{ type: 'tipo_himenio', value: '   ' }]), /Falta/);
   assert.throws(() => validateMorphology([{ type: 'diametro_sombrero', value: '5' }]), /cm o mm/);
 });
+test('environmental measurements follow the SQL enum, numeric value and required unit', () => {
+  validateMeasurements([{ type: 'temperature', value: '24.5', unit: '°C' }, { type: 'relativeHumidity', value: '71', unit: '%' }]);
+  assert.throws(() => validateMeasurements([{ type: 'pH', value: '6', unit: 'pH' }]), /válida/);
+  assert.throws(() => validateMeasurements([{ type: 'temperature', value: 'cálido', unit: '°C' }]), /numérico/);
+  assert.throws(() => validateMeasurements([{ type: 'temperature', value: '24', unit: ' ' }]), /unidad/);
+  assert.throws(() => validateMeasurements([{ type: 'temperature', value: '24', unit: '°C' }, { type: 'temperature', value: '25', unit: '°C' }]), /repetida/);
+});
 test('record contract preserves each entity, dates, zero accuracy, and exactly one morphology owner', () => {
   const p = recordPayload(record);
   assert.equal(p.location.decimal_latitude, 0); assert.equal(p.location.coordinate_uncertainty_m, 0);
   assert.equal(p.event.event_date, '2026-10-15'); assert.equal(p.occurrence.date_identified, '2026-10-17');
   assert.equal(p.occurrence.recorded_by, 'Recolector'); assert.equal(p.occurrence.identified_by, 'Identificador');
   assert.equal(p.morphology[0].taxon_id, null); assert.equal(p.morphology[0].occurrence_id, 'record');
-  assert.equal(p.measurements[0].event_id, 'event'); assert.equal(p.measurements[0].occurrence_id, null);
+  assert.equal(p.measurements[0].event_id, 'event'); assert.equal(p.measurements[0].measurement_type, 'temperature');
+  assert.equal(p.measurements[0].measurement_value, 24); assert.equal(p.measurements[0].measurement_unit, '°C');
   assert.deepEqual(normalizeMorphology(p.morphology), morphology);
   assert.equal(normalizeParticipants(p.participants)[0].displayName, 'Ana');
   assert.equal(recordPayload({ ...record, taxonId: '' }).occurrence.taxon_id, null);
 });
-test('taxon contract keeps bibliography, interviews, uses and general morphology separate', () => {
+test('taxon contract keeps bibliography and morphology separate and leaves interviews to their own section', () => {
   const p = taxonPayload({ ...taxon, knowledge: [{ id: 'interview', interviewDate: '2026-10-17', consentGiven: true, knowsFungi: false, uses: [{ id: 'use', useCategory: 'cultural' }] }], sources: [{ id: 'source', sourceType: 'book', year: '2026', title: 'Manual' }] });
   assert.equal(p.taxon.specific_epithet, 'ostreatus'); assert.equal(p.sources[0].year, 2026);
   assert.equal(p.morphology[0].occurrence_id, null); assert.equal(p.morphology[0].taxon_id, 'taxon');
-  assert.equal(p.knowledge[0].source.consent_given, true); assert.equal(p.knowledge[0].knowledge.knows_fungi, false);
-  assert.equal(p.knowledge[0].uses[0].use_category, 'cultural');
+  // Omitting the key keeps the interviews stored in the exclusive section.
+  assert.equal('knowledge' in p, false);
+});
+
+test('exclusive interview contract links one source to one species with its uses', () => {
+  const survey = { id: 'source', knowledgeId: 'knowledge', interviewDate: '2026-10-17', interviewer: 'Ana', consentGiven: true, anonymityLevel: 'pseudonym', knowsFungi: false, localName: 'oreja de palo', uses: [{ id: 'use', useCategory: 'medicinal', usesFungi: true }] };
+  const payload = ethnoSurveyPayload('taxon', survey);
+  assert.equal(payload.source.ethno_source_id, 'source');
+  assert.equal(payload.source.interview_date, '2026-10-17T12:00:00-05:00');
+  assert.equal(payload.source.consent_given, true);
+  assert.equal(payload.knowledge.knowledge_id, 'knowledge');
+  assert.equal(payload.knowledge.ethno_source_id, 'source');
+  assert.equal(payload.knowledge.taxon_id, 'taxon');
+  assert.equal(payload.knowledge.knows_fungi, false);
+  assert.equal(payload.knowledge.local_name, 'oreja de palo');
+  assert.equal(payload.uses[0].use_category, 'medicinal');
+  assert.equal(payload.uses[0].uses_fungi, true);
+  const normalized = normalizeEthnoSurvey({ source: { ethno_source_id: 'source', interview_date: '2026-10-17T12:00:00-05:00', consent_given: true }, knowledge: { knowledge_id: 'knowledge', taxon_id: 'taxon', knows_fungi: false }, uses: [{ use_id: 'use', use_category: 'medicinal', uses_fungi: true }] });
+  assert.equal(normalized.knowledgeId, 'knowledge');
+  assert.equal(normalized.taxonId, 'taxon');
+  assert.equal(normalized.uses[0].usesFungi, true);
 });
 test('bundle writes require explicit configured paths and stable file IDs for safe retries', () => {
   assert.throws(() => bundlePath('', 'id', 'hallazgos'), /aún no/);

@@ -11,7 +11,7 @@ import { canAccessPage, canEditOccurrence, capabilitiesFor } from './lib/permiss
 import { assignOccurrenceForSession } from './lib/record-ownership.mjs';
 import { EMPTY_TAXON_FILTERS, applyTaxonFilter, matchesTaxonFilters } from './lib/taxon-filters.mjs';
 import { searchTaxa } from './lib/taxon-search.mjs';
-import { roleNames, statusNames, type Dataset, type Occurrence, type Status, type Taxon, type User, type PendingPhoto } from './types';
+import { roleNames, statusNames, type Dataset, type EthnoSurvey, type Occurrence, type Status, type Taxon, type User, type PendingPhoto } from './types';
 import { Busy, Empty, Modal, Notice, Photo, StatusBadge } from './components/UI';
 import OccurrenceMap from './components/OccurrenceMap';
 import TaxonFilters from './components/TaxonFilters';
@@ -24,9 +24,10 @@ import ExportButtons from './components/ExportButtons';
 import { photoDataUrl } from './components/PhotoPicker';
 import SpeciesDetail from './components/SpeciesDetail';
 import UserManagement from './components/UserManagement';
+import Interviews from './components/Interviews';
 
-type Page = 'dashboard' | 'especies' | 'mapa' | 'galeria' | 'registros' | 'curaduria' | 'usuarios' | 'guia';
-const pageTitles: Record<Page, string> = { dashboard: 'Vista general', especies: 'Catálogo de especies', mapa: 'Visor cartográfico', galeria: 'Galería multimedia', registros: 'Registros de campo', curaduria: 'Curaduría', usuarios: 'Gestión de usuarios', guia: 'Guía de la plataforma' };
+type Page = 'dashboard' | 'especies' | 'mapa' | 'galeria' | 'registros' | 'entrevistas' | 'curaduria' | 'usuarios' | 'guia';
+const pageTitles: Record<Page, string> = { dashboard: 'Vista general', especies: 'Catálogo de especies', mapa: 'Visor cartográfico', galeria: 'Galería multimedia', registros: 'Registros de campo', entrevistas: 'Entrevistas y saberes', curaduria: 'Curaduría', usuarios: 'Gestión de usuarios', guia: 'Guía de la plataforma' };
 const blank: Dataset = { taxa: [], occurrences: [], users: [] };
 function currentRoute() {
   const hash = window.location.hash.replace(/^#\/?/, '').split('/');
@@ -176,6 +177,41 @@ export default function App() {
   async function saveTaxon(taxon: Taxon) {
     await persistTaxon(taxon); setModal(null); notify('Ficha taxonómica guardada.');
   }
+  async function saveInterview(taxonId: string, survey: EthnoSurvey): Promise<EthnoSurvey> {
+    if (!canWrite) throw new Error('Tu rol no permite guardar entrevistas.');
+    const taxon = data.taxa.find(t => t.id === taxonId);
+    if (!taxon) throw new Error('Selecciona una especie válida.');
+    if (role !== 'admin' && taxon.ownerId !== user?.id) throw new Error('Solo puedes registrar entrevistas en tus propias fichas.');
+    const saved: EthnoSurvey = { ...survey, taxonId, id: survey.id || crypto.randomUUID(), knowledgeId: survey.knowledgeId || crypto.randomUUID() };
+    if (config.demo) {
+      const current = taxon.knowledge || [];
+      const exists = current.some(item => item.knowledgeId === saved.knowledgeId);
+      const knowledge = exists ? current.map(item => item.knowledgeId === saved.knowledgeId ? saved : item) : [...current, saved];
+      await updateDataset({ ...data, taxa: data.taxa.map(t => t.id === taxonId ? { ...t, knowledge } : t) });
+      return saved;
+    }
+    const result = await api.saveEthnoSurvey(taxonId, survey);
+    setData(current => ({ ...current, taxa: current.taxa.map(t => t.id === taxonId ? {
+      ...t,
+      knowledge: (t.knowledge || []).some(item => item.knowledgeId === result.knowledgeId)
+        ? (t.knowledge || []).map(item => item.knowledgeId === result.knowledgeId ? result : item)
+        : [...(t.knowledge || []), result],
+    } : t) }));
+    return result;
+  }
+  async function deleteInterview(taxonId: string, survey: EthnoSurvey) {
+    if (!canWrite) throw new Error('Tu rol no permite eliminar entrevistas.');
+    const taxon = data.taxa.find(t => t.id === taxonId);
+    if (!taxon) throw new Error('La especie asociada ya no está disponible.');
+    if (role !== 'admin' && taxon.ownerId !== user?.id) throw new Error('Solo puedes retirar entrevistas de tus propias fichas.');
+    if (config.demo) {
+      await updateDataset({ ...data, taxa: data.taxa.map(t => t.id === taxonId ? { ...t, knowledge: (t.knowledge || []).filter(item => item.knowledgeId !== survey.knowledgeId) } : t) });
+      return;
+    }
+    if (!survey.knowledgeId) throw new Error('La entrevista no tiene identificador.');
+    await api.deleteEthnoKnowledge(survey.knowledgeId);
+    setData(current => ({ ...current, taxa: current.taxa.map(t => t.id === taxonId ? { ...t, knowledge: (t.knowledge || []).filter(item => item.knowledgeId !== survey.knowledgeId) } : t) }));
+  }
   async function review(o: Occurrence, next: Status, note: string) {
     if (!canCurate) throw new Error('Tu rol no permite revisar registros.');
     if (config.demo) await updateDataset({ ...data, occurrences: data.occurrences.map(r => r.id === o.id ? { ...r, status: next, reviewNote: note } : r) });
@@ -189,7 +225,7 @@ export default function App() {
     { page: 'mapa' as Page, label: 'Visor cartográfico', icon: MapPin },
     { page: 'galeria' as Page, label: 'Galería multimedia', icon: Image },
   ];
-  if (!user) return <AuthScreen message={toast} onSuccess={authenticated => { setUser(authenticated); setToast(''); }} />;
+  if (!user) return <AuthScreen message={toast} onSuccess={authenticated => { setUser(authenticated); setToast(''); }} onGuest={() => { setUser({ id: '', name: 'Visitante', email: '', role: 'viewer', isGuest: true }); setToast(''); }} />;
   return <div className="app-shell">
     <a className="skip-link" href="#main-content">Saltar al contenido</a>
     {mobileNav && <button className="nav-backdrop" aria-label="Cerrar navegación" onClick={() => setMobileNav(false)} />}
@@ -199,6 +235,7 @@ export default function App() {
       <nav><p className="nav-label">EXPLORAR</p>{navItems.map(({ page, label, icon: Icon }) => <button key={page} className={`nav-item ${route.page === page ? 'active' : ''}`} onClick={() => navigate(page)} aria-current={route.page === page ? 'page' : undefined}><Icon size={19} /><span>{label}</span>{route.page === page && <span className="nav-active-dot" />}</button>)}
         {(canWrite || canCurate) && <p className="nav-label research-label">INVESTIGACIÓN</p>}
         {canWrite && <button className={`nav-item ${route.page === 'registros' ? 'active' : ''}`} onClick={() => navigate('registros')}><ClipboardList size={19} /><span>Registros de campo</span></button>}
+        {(canWrite || canCurate) && <button className={`nav-item ${route.page === 'entrevistas' ? 'active' : ''}`} onClick={() => navigate('entrevistas')}><Microscope size={19} /><span>Entrevistas y saberes</span></button>}
         {canCurate && <button className={`nav-item ${route.page === 'curaduria' ? 'active' : ''}`} onClick={() => navigate('curaduria')}><ShieldCheck size={19} /><span>Curaduría</span>{pending > 0 && <span className="nav-count">{pending}</span>}</button>}
         {role === 'admin' && <button className={`nav-item ${route.page === 'usuarios' ? 'active' : ''}`} onClick={() => navigate('usuarios')}><Users size={19} /><span>Gestión de usuarios</span></button>}
       </nav>
@@ -210,7 +247,9 @@ export default function App() {
     <div className="workspace">
       <header className="topbar"><div className="topbar-location"><button className="icon-btn mobile-menu" aria-label="Abrir navegación" onClick={() => setMobileNav(true)}><Menu size={22} /></button><span className="breadcrumb">Plataforma académica</span><span className="breadcrumb-divider">/</span><strong>{route.speciesId ? 'Ficha de especie' : pageTitles[route.page]}</strong></div>
         <div className="topbar-actions"><span className={`mode-badge ${config.demo ? 'demo' : ''}`}>{config.demo ? 'Demostración' : 'Modo API'}</span>
-          <div className="user-control"><span className="avatar">{user.name.split(" ").map(n => n[0]).slice(0, 2).join("")}</span><div className="user-label"><strong>{user.name}</strong><span>{roleNames[role]}</span></div><button className="icon-btn" title="Cerrar sesión" aria-label="Cerrar sesión" onClick={() => { endSession(); navigate("dashboard"); }}><LogOut size={17} /></button></div>
+          {user.isGuest
+            ? <button className="btn small" onClick={() => { endSession(); navigate('dashboard'); }}>Iniciar sesión</button>
+            : <div className="user-control"><span className="avatar">{user.name.split(" ").map(n => n[0]).slice(0, 2).join("")}</span><div className="user-label"><strong>{user.name}</strong><span>{roleNames[role]}</span></div><button className="icon-btn" title="Cerrar sesión" aria-label="Cerrar sesión" onClick={() => { endSession(); navigate("dashboard"); }}><LogOut size={17} /></button></div>}
         </div>
       </header>
       <main id="main-content" tabIndex={-1}>
@@ -231,6 +270,7 @@ export default function App() {
           {route.page === 'mapa' && <MapView data={data} filters={taxonFilters} onFilterChange={updateTaxonFilter} onReset={resetTaxonFilters} onSelect={openOccurrence} />}
           {route.page === 'galeria' && <Gallery data={data} onSelect={openOccurrence} onUpload={canWrite ? () => openUpload() : undefined} />}
           {route.page === 'registros' && <RecordsView ownOnly={role === 'analyst'} data={{ ...data, occurrences: role === 'analyst' ? ownRecords : data.occurrences }} onSelect={editOccurrence} onCreate={newRecord} onFetched={o => { if (!data.occurrences.some(r => r.id === o.id)) setData({ ...data, occurrences: [o, ...data.occurrences] }); }} />}
+          {route.page === 'entrevistas' && <Interviews data={data} user={user} onSave={saveInterview} onDelete={deleteInterview} />}
           {route.page === 'curaduria' && <Curation data={data} onReview={review} onSpecies={openSpecies} />}
           {route.page === 'usuarios' && <UserManagement users={data.users} onSave={async (updated) => {
             if (role !== 'admin') throw new Error('Solo el administrador puede gestionar roles.');

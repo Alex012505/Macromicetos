@@ -45,7 +45,7 @@ def record_bundle(taxon_id=None):
             "occurrence": {"occurrence_id": occurrence_id, "event_id": event_id, "taxon_id": taxon_id,
                            "event_date": "2026-10-20T13:00:00-05:00", "date_identified": "2026-10-22", "identified_by": "Especialista", "substrate": "Madera muerta"},
             "morphology": [{"occurrence_id": occurrence_id, "measurement_type": "diametro_sombrero", "measurement_value": "5–8", "measurement_unit": "cm"}],
-            "measurements": [{"occurrence_id": occurrence_id, "event_id": None, "measurement_type": "Temperatura", "measurement_value": "24", "measurement_unit": "°C"}],
+            "measurements": [{"event_id": event_id, "measurement_type": "temperature", "measurement_value": 24, "measurement_unit": "°C", "measurement_method": "Estación portátil"}],
             "participants": [{"party": {"party_id": uid(), "display_name": "Participante", "contact_email": "private@example.org"}, "party_role": "collector"}],
             "multimedia": []}
 
@@ -77,9 +77,15 @@ def test_registration_login_and_real_profile(client):
         assert user.password_hash != PASSWORD and user.role == "viewer"
 
 
-def test_authentication_required_for_application_and_legacy_routes(client, accounts):
-    assert client.get("/taxa").status_code == 401
-    assert client.get("/occurrences").status_code == 401
+def test_anonymous_visitor_reads_catalogue_but_private_routes_require_login(client, accounts):
+    for path in ("/taxa", "/occurrences"):
+        assert client.get(path).status_code == 200
+    assert all("knowledge" not in item for item in client.get("/taxa").json())
+    for path in ("/users", "/curation/queue", "/ethno-surveys"):
+        assert client.get(path).status_code == 401
+    assert client.put(f"/taxon-bundles/{uid()}", json={}).status_code == 401
+    # A stale or forged token is rejected instead of silently becoming a visitor.
+    assert client.get("/taxa", headers={"Authorization": "Bearer invalid"}).status_code == 401
     assert client.get("/users", headers=accounts["alice"]["headers"]).status_code == 403
     assert client.post("/legacy/locations", json={}, headers=accounts["alice"]["headers"]).status_code == 403
     expired = create_access_token({"sub": accounts["alice"]["id"], "role": "analyst"}, dt.timedelta(seconds=-1))
@@ -155,6 +161,59 @@ def test_taxon_bundle_contract_round_trip_and_rejects_unknown_enums(client, acco
         assert client.put(f"/taxon-bundles/{taxon_id}", json=invalid, headers=accounts["alice"]["headers"]).status_code == 422
 
 
+def test_exclusive_interview_section_round_trip_and_permissions(client, accounts):
+    body = taxon_bundle()
+    taxon_id = body["taxon"]["taxon_id"]
+    body.pop("knowledge")  # the taxon form no longer owns interviews
+    assert client.put(f"/taxon-bundles/{taxon_id}", json=body, headers=accounts["alice"]["headers"]).status_code == 200
+
+    source_id, knowledge_id, use_id = uid(), uid(), uid()
+    payload = {
+        "source": {"ethno_source_id": source_id, "interview_date": "2026-10-22T12:00:00-05:00",
+                   "interviewer": "Ana", "consent_given": True, "consent_type": "verbal",
+                   "anonymity_level": "pseudonym", "age_range": "41-60", "gender": "female",
+                   "occupation": "farmer", "state_province": "Vichada", "municipality": "Cumaribo",
+                   "village": "Chupave", "remarks": "Sesión en la vereda"},
+        "knowledge": {"knowledge_id": knowledge_id, "ethno_source_id": source_id, "taxon_id": taxon_id,
+                      "knows_fungi": True, "local_name": "oreja de palo", "learning_source": "family",
+                      "recognition_cues": "Textura aterciopelada", "found_in_places": "Troncos caídos",
+                      "seasonality": "Lluvias", "months": "mayo–julio", "safety_practices": "Cocción completa",
+                      "myths_stories": "Se comparte en familia", "cultural_identity": "partial",
+                      "recommendations": "Consumir solo ejemplares frescos"},
+        "uses": [{"use_id": use_id, "knowledge_id": knowledge_id, "taxon_id": taxon_id,
+                  "uses_fungi": True, "use_category": "medicinal", "importance": "high",
+                  "preparation_method": "Decocción", "ailment": "Inflamación", "dosage": "Una taza",
+                  "contraindications": "Embarazo", "recommendations": ""}],
+    }
+    saved = client.put(f"/ethno-surveys/{source_id}", json=payload, headers=accounts["alice"]["headers"])
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["knowledge"]["local_name"] == "oreja de palo"
+
+    listing = client.get("/ethno-surveys", headers=accounts["alice"]["headers"])
+    assert listing.status_code == 200 and len(listing.json()) == 1
+    item = listing.json()[0]
+    assert item["source"]["village"] == "Chupave"
+    assert item["uses"][0]["uses_fungi"] is True
+    assert len(client.get("/ethno-surveys", headers=accounts["curator"]["headers"]).json()) == 1
+    assert client.get("/ethno-surveys", headers=accounts["viewer"]["headers"]).status_code == 403
+    assert client.put(f"/ethno-surveys/{source_id}", json=payload, headers=accounts["bob"]["headers"]).status_code == 403
+
+    # Editing the taxon without a knowledge list must not delete interviews.
+    assert client.put(f"/taxon-bundles/{taxon_id}", json=body, headers=accounts["alice"]["headers"]).status_code == 200
+    assert len(client.get("/ethno-surveys", headers=accounts["alice"]["headers"]).json()) == 1
+
+    payload["uses"][0]["dosage"] = "Una cucharada"
+    assert client.put(f"/ethno-surveys/{source_id}", json=payload, headers=accounts["alice"]["headers"]).status_code == 200
+    assert client.get("/ethno-surveys", headers=accounts["alice"]["headers"]).json()[0]["uses"][0]["dosage"] == "Una cucharada"
+
+    without_consent = copy.deepcopy(payload)
+    without_consent["source"]["consent_given"] = False
+    assert client.put(f"/ethno-surveys/{source_id}", json=without_consent, headers=accounts["alice"]["headers"]).status_code == 422
+
+    assert client.delete(f"/ethno-surveys/knowledge/{knowledge_id}", headers=accounts["alice"]["headers"]).status_code == 204
+    assert client.get("/ethno-surveys", headers=accounts["alice"]["headers"]).json() == []
+
+
 def test_full_record_identity_photos_and_idempotent_retry(client, accounts):
     body = record_bundle()
     body["owner_id"] = accounts["bob"]["id"]
@@ -171,7 +230,9 @@ def test_full_record_identity_photos_and_idempotent_retry(client, accounts):
     assert saved["substrate"] == "Madera muerta"
     assert saved["event"]["location"]["decimal_latitude"] == 0 and saved["event"]["location"]["coordinate_uncertainty_m"] == 0
     assert saved["date_identified"] == "2026-10-22" and saved["event"]["event_date"] == "2026-10-20"
-    assert saved["measurements"][0]["measurement_value"] == "24"
+    assert saved["measurements"][0]["measurement_value"] == 24
+    assert saved["measurements"][0]["measurement_type"] == "temperature"
+    assert saved["measurements"][0]["measurement_unit"] == "°C"
     photo = saved["multimedia"][0]
     assert photo["photo_type"] == "pileus" and photo["file_name"] == "photo.png" and "file_path" not in photo
     assert client.get(photo["source_url"]).content == picture()
@@ -207,7 +268,7 @@ def test_record_parties_and_photo_credits_are_normalized(client, accounts):
     # El JSON ya no duplica ubicación, evento, sustrato ni participantes.
     with SessionLocal() as db:
         state = db.get(ApplicationState, ("occurrence", uuid.UUID(saved["occurrence_id"])))
-        assert set(state.payload) == {"snapshot", "measurements"}
+        assert set(state.payload) == {"snapshot"}
         media_state = db.get(ApplicationState, ("multimedia", uuid.UUID(media_id)))
         assert media_state.payload == {}
     public = client.get(f"/occurrences/{saved['occurrence_id']}", headers=accounts["viewer"]["headers"]).json()
@@ -316,6 +377,18 @@ def test_record_validation_and_foreign_event_protection(client, accounts):
         invalid = record_bundle()
         mutate(invalid)
         assert put_record(client, invalid, accounts["alice"]).status_code == 422
+    # La tabla impone el enum de microclima, valor numérico, unidad y una
+    # lectura por variable y evento.
+    for mutate in (lambda b: b["measurements"][0].update(measurement_type="pH"),
+                   lambda b: b["measurements"][0].update(measurement_value="cálido"),
+                   lambda b: b["measurements"][0].update(measurement_unit="   "),
+                   lambda b: b["measurements"].append(dict(b["measurements"][0]))):
+        invalid = record_bundle()
+        mutate(invalid)
+        assert put_record(client, invalid, accounts["alice"]).status_code == 422
+    missing_event = record_bundle()
+    missing_event["measurements"][0]["event_id"] = uid()
+    assert put_record(client, missing_event, accounts["alice"]).status_code == 422
 
 
 def test_role_management_protects_last_admin_and_invalidates_old_tokens(client, accounts):

@@ -8,7 +8,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 const compiled = await build({ entryPoints: ['src/components/ScientificFields.tsx'], bundle: true, platform: 'node', format: 'cjs', packages: 'external', write: false });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { Fields } = module.exports;
+const { Fields, MeasurementEditor } = module.exports;
 
 test('populated textareas retain a stable accessible label independent of their saved content', () => {
   const html = renderToStaticMarkup(React.createElement(Fields, {
@@ -26,4 +26,16 @@ test('select accessible names do not include the selected option or the list of 
   }));
   assert.match(html, /<select[^>]*aria-label="Perfil académico"/);
   assert.match(html, /<option value="curator" selected="">Curador<\/option>/);
+});
+
+test('measurement editor offers only the SQL enum, a numeric value and a required unit', () => {
+  const html = renderToStaticMarkup(React.createElement(MeasurementEditor, {
+    value: [{ type: 'temperature', value: '24.5', unit: '°C' }], onChange() {},
+  }));
+  assert.match(html, /Variable ambiental/);
+  assert.match(html, /<option value="temperature" selected="">Temperatura<\/option>/);
+  assert.match(html, /Humedad relativa/);
+  assert.match(html, /type="number"/);
+  assert.match(html, /Ámbito: salida de campo/);
+  assert.ok(!html.includes('pH'));
 });

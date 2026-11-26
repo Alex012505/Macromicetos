@@ -1,4 +1,5 @@
 import { morphologyTypes, morphologyLabel } from './morphology.mjs';
+import { measurementLabel } from './measurements.mjs';
 
 const states = { verified: 'Verificado', pending: 'En revisión', rejected: 'Requiere ajustes', unknown: 'Sin estado' };
 export const taxonHeaders = ['ID taxón', 'Nombre científico', 'Nombre común', 'Rango', 'Reino', 'División', 'Clase', 'Orden', 'Familia', 'Género', 'Epíteto específico', 'ID taxonómico externo', 'Notas taxonómicas'];
@@ -10,7 +11,7 @@ export function speciesRows(taxa, records) {
 }
 export function occurrenceRows(records, taxa) {
   return [[...taxonHeaders, 'ID hallazgo', 'ID evento', 'Tipo de registro', 'ID externo del hallazgo', 'Fecha de observación', 'Registrado por', 'Identificado por', 'Fecha de identificación', 'País', 'Departamento', 'Municipio', 'Localidad', 'Latitud WGS84', 'Longitud WGS84', 'Incertidumbre (m)', 'Elevación (m)', 'Hábitat', 'Sustrato', 'Estado', 'Notas del hallazgo', 'Código de campo', 'Tipo de evento', 'Protocolo', 'Esfuerzo de muestreo', 'Notas de ubicación', 'Notas del evento', 'Medidas ambientales', ...morphologyTypes.map(([, label]) => label)],
-    ...records.map(o => [...taxonCells(taxa.find(t => t.id === o.taxonId)), o.id, o.eventId, o.basisOfRecord || '', o.externalOccurrenceId || '', o.eventDate || o.date, o.recordedBy || '', o.author, o.date, o.country || '', o.department, o.municipality || '', o.locality, o.lat, o.lng, o.uncertaintyM, o.elevationM, o.habitat, o.substrate, states[o.status], o.remarks, o.fieldNumber || '', o.eventType || '', o.samplingProtocol || '', o.samplingEffort || '', o.locationRemarks || '', o.eventRemarks || '', (o.measurements || []).map(m => `${m.scope === 'event' ? 'Evento' : 'Hallazgo'}: ${m.name} = ${m.value} ${m.unit || ''}`).join('; '), ...morphologyTypes.map(([type]) => factText(o.morphology, type))])];
+    ...records.map(o => [...taxonCells(taxa.find(t => t.id === o.taxonId)), o.id, o.eventId, o.basisOfRecord || '', o.externalOccurrenceId || '', o.eventDate || o.date, o.recordedBy || '', o.author, o.date, o.country || '', o.department, o.municipality || '', o.locality, o.lat, o.lng, o.uncertaintyM, o.elevationM, o.habitat, o.substrate, states[o.status], o.remarks, o.fieldNumber || '', o.eventType || '', o.samplingProtocol || '', o.samplingEffort || '', o.locationRemarks || '', o.eventRemarks || '', (o.measurements || []).map(m => `${measurementLabel(m.type)} = ${m.value} ${m.unit || ''}`).join('; '), ...morphologyTypes.map(([type]) => factText(o.morphology, type))])];
 }
 export function morphologyRows(taxa, records) {
   const rows = [['Ámbito', 'ID', 'Nombre científico', 'Rasgo', 'Valor', 'Unidad', 'Fecha de evaluación', 'Notas']];

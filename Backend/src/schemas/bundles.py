@@ -40,7 +40,8 @@ class TaxonBundle(BaseModel):
     taxon: TaxonData
     morphology: list[MorphologyData] = Field(default_factory=list, max_length=18)
     sources: list[SourceData] = Field(default_factory=list, max_length=100)
-    knowledge: list[EthnoSurveyData] = Field(default_factory=list, max_length=100)
+    # None means "leave the exclusive interview section untouched".
+    knowledge: list[EthnoSurveyData] | None = Field(None, max_length=100)
     participants: list[ParticipantData] = Field(default_factory=list, max_length=100)
 
 

@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import type { Taxon } from '../types';
 import { validateMorphology } from '../lib/morphology.mjs';
-import { Fields, KnowledgeEditor, MorphologyEditor, ParticipantsEditor, SourcesEditor } from './ScientificFields';
+import { Fields, MorphologyEditor, ParticipantsEditor, SourcesEditor } from './ScientificFields';
 import { Notice } from './UI';
 
 export default function TaxonForm({ existing, initial, ownerId, onSave, onCancel }: { existing: Taxon[]; initial?: Taxon; ownerId: string; onSave: (taxon: Taxon) => Promise<void>; onCancel: () => void }) {
@@ -29,8 +29,6 @@ export default function TaxonForm({ existing, initial, ownerId, onSave, onCancel
       if (v.sources?.some(s => s.year && (!Number.isInteger(Number(s.year)) || Number(s.year) < 1753 || Number(s.year) > 2100))) throw new Error('El año bibliográfico debe ser un entero entre 1753 y 2100.');
       if (existing.some(t => t.id !== v.id && t.scientificName.toLowerCase() === name.toLowerCase() && (t.rank || 'species') === rank)) throw new Error('Este nombre y rango ya existen en el catálogo.');
       validateMorphology(v.morphology);
-      if (v.knowledge?.some(s => !s.consentGiven)) throw new Error('Para guardar una entrevista es necesario registrar el consentimiento otorgado. Si no lo tienes, retira esa entrevista.');
-      if (v.knowledge?.some(s => s.uses.some(u => !u.useCategory))) throw new Error('Cada uso reportado necesita una categoría.');
       setBusy(true); await onSave({ ...v, rank, scientificName: name, genus: v.genus.trim() || name.split(' ')[0], specificEpithet: v.specificEpithet || (rank === 'species' ? name.split(' ')[1] : ''), status: 'pending' });
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
@@ -40,5 +38,5 @@ export default function TaxonForm({ existing, initial, ownerId, onSave, onCancel
     { key: 'kingdom', label: 'Reino', required: true }, { key: 'phylum', label: 'División' , required: true}, { key: 'className', label: 'Clase', required: true }, { key: 'order', label: 'Orden', required: true }, { key: 'family', label: 'Familia' , required: true},
     { key: 'genus', label: 'Género', scientific: true, required: true }, { key: 'specificEpithet', label: 'Epíteto específico', scientific: true }, { key: 'externalTaxonId', label: 'Identificador taxonómico externo', max: 40 },
     { key: 'remarks', label: 'Notas taxonómicas', type: 'textarea' },
-  ]} /><section className="editor-section"><h3>Morfología general de la especie</h3><MorphologyEditor value={v.morphology || []} onChange={items => set('morphology', items)} /></section><section className="editor-section"><h3>Fuentes bibliográficas</h3><SourcesEditor value={v.sources || []} onChange={items => set('sources', items)} /></section><section className="editor-section"><h3>Responsables de la ficha</h3><ParticipantsEditor taxon value={v.participants || []} onChange={items => set('participants', items)} /></section><section className="editor-section"><h3>Conocimiento socioecológico</h3><KnowledgeEditor value={v.knowledge || []} onChange={items => set('knowledge', items)} /></section></fieldset>{error && <Notice error>{error}</Notice>}<div className="form-actions"><button className="btn" type="button" onClick={onCancel} disabled={busy}>Cancelar</button><button className="btn primary" disabled={busy}>{busy ? 'Guardando…' : initial ? 'Guardar ficha' : 'Añadir especie'}</button></div></form>;
+  ]} /><section className="editor-section"><h3>Morfología general de la especie</h3><MorphologyEditor value={v.morphology || []} onChange={items => set('morphology', items)} /></section><section className="editor-section"><h3>Fuentes bibliográficas</h3><SourcesEditor value={v.sources || []} onChange={items => set('sources', items)} /></section><section className="editor-section"><h3>Responsables de la ficha</h3><ParticipantsEditor taxon value={v.participants || []} onChange={items => set('participants', items)} /></section><p className="muted">Las entrevistas y el conocimiento socioecológico se registran en la sección «Entrevistas y saberes», asociados a esta especie.</p></fieldset>{error && <Notice error>{error}</Notice>}<div className="form-actions"><button className="btn" type="button" onClick={onCancel} disabled={busy}>Cancelar</button><button className="btn primary" disabled={busy}>{busy ? 'Guardando…' : initial ? 'Guardar ficha' : 'Añadir especie'}</button></div></form>;
 }

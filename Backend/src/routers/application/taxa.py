@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from Security import get_current_user, require_writer
+from Security import get_optional_user, require_writer
 from database.Base import get_db
 from models.TaxonRef import TaxonRef
 from models.UserWeb import UserWeb
@@ -20,7 +20,7 @@ router = APIRouter(tags=["taxa"])
 
 
 @router.get("/taxa")
-def taxa(request: Request, search: str = "", db: Session = Depends(get_db), user: UserWeb = Depends(get_current_user)):
+def taxa(request: Request, search: str = "", db: Session = Depends(get_db), user=Depends(get_optional_user)):
     query = select(TaxonRef).order_by(TaxonRef.scientific_name)
     if search:
         query = query.where(TaxonRef.scientific_name.ilike(f"%{search}%") | TaxonRef.common_name_es.ilike(f"%{search}%"))
@@ -39,7 +39,7 @@ def taxa_export(db: Session = Depends(get_db)):
 
 
 @router.get("/taxa/{taxon_id}")
-def taxon(taxon_id: uuid.UUID, request: Request, db: Session = Depends(get_db), user: UserWeb = Depends(get_current_user)):
+def taxon(taxon_id: uuid.UUID, request: Request, db: Session = Depends(get_db), user=Depends(get_optional_user)):
     return complete(db, "taxon_ref", find(db, TaxonRef, taxon_id), user, str(request.base_url))
 
 

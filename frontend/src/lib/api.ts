@@ -1,7 +1,7 @@
 import { createHttpClient, unwrapList, safeImageUrl, ApiError } from './http.mjs';
 import { readAccessToken, profileFromLogin } from './auth-session.mjs';
 import type { Taxon, Occurrence, User, Role, Status, PendingPhoto, PhotoMetadata, EthnoSurvey } from '../types';
-import { bundleForm, bundlePath, recordPayload, taxonPayload, normalizeMorphology, normalizeParticipants, fromFields, sourceFields, surveyFields, knowledgeFields, useFields } from './record-contract.mjs';
+import { bundleForm, bundlePath, recordPayload, taxonPayload, normalizeMorphology, normalizeParticipants, fromFields, sourceFields, normalizeEthnoSurvey, ethnoSurveyPayload } from './record-contract.mjs';
 
 export const config = {
   demo: import.meta.env.VITE_DATA_MODE === 'demo',
@@ -45,7 +45,7 @@ export function normalizeTaxon(raw: any): Taxon {
     ownerId: raw.owner_id, rank: raw.taxon_rank || raw.taxonRank || 'species', specificEpithet: raw.specific_epithet || raw.species || '', externalTaxonId: raw.external_taxon_id || raw.externalTaxonID || '',
     morphology: normalizeMorphology(raw.morphology || raw.morphology_facts || []),
     participants: normalizeParticipants(raw.participants), sources: (raw.sources || []).map((s: any) => fromFields(s, sourceFields)),
-    knowledge: (raw.knowledge || []).map((s: any) => ({ ...fromFields(s.source || s, surveyFields), ...fromFields(s.knowledge || s, knowledgeFields), knowledgeId: s.knowledge?.knowledge_id || s.knowledge_id || s.knowledgeId, interviewDate: (s.source?.interview_date || s.interview_date || s.interviewDate || '').slice(0, 10), uses: (s.uses || []).map((u: any) => fromFields(u, useFields)) })) as EthnoSurvey[],
+    knowledge: (raw.knowledge || []).map(normalizeEthnoSurvey) as EthnoSurvey[],
     image: safeImageUrl(raw.image || raw.image_url), status: status(raw.status) };
 }
 export function normalizeOccurrence(raw: any): Occurrence {
@@ -69,7 +69,7 @@ export function normalizeOccurrence(raw: any): Occurrence {
     morphology: normalizeMorphology(raw.morphology || raw.morphology_facts || []), participants: normalizeParticipants(raw.participants),
     photos: (raw.multimedia || []).map(normalizePhoto),
     images: (raw.multimedia || []).map((m: any) => safeImageUrl(m.source_url || m.access_uri || m.url || m.image_url)).filter(Boolean),
-    measurements: (raw.measurements || []).map((m: any) => ({ name: m.measurement_type, value: m.measurement_value, unit: m.measurement_unit, scope: m.occurrence_id ? 'occurrence' : 'event' })),
+    measurements: (raw.measurements || []).map((m: any) => ({ type: m.measurement_type, value: String(m.measurement_value ?? ''), unit: m.measurement_unit ?? '', method: m.measurement_method ?? '', remarks: m.measurement_remarks ?? '' })),
   };
 }
 export function normalizeUser(raw: any): User {
@@ -119,11 +119,17 @@ export const api = {
     if (config.taxonBundlePath) {
       return normalizeTaxon(await http.request(bundlePath(config.taxonBundlePath, taxon.id, 'fichas taxonómicas'), { method: 'PUT', body: taxonPayload(taxon) }));
     }
-    if ([taxon.morphology, taxon.sources, taxon.knowledge, taxon.participants].some(items => items?.length)) {
-      throw new ApiError('El guardado completo de morfología, fuentes, entrevistas y participantes requiere habilitar el contrato de ficha completa.');
+    if ([taxon.morphology, taxon.sources, taxon.participants].some(items => items?.length)) {
+      throw new ApiError('El guardado completo de morfología, fuentes y participantes requiere habilitar el contrato de ficha completa.');
     }
     const { taxon_id: _clientId, ...body } = taxonPayload({ ...taxon, rank: taxon.rank || 'species' }).taxon;
     return normalizeTaxon(await http.request('/taxa', { method: 'POST', body }));
+  },
+  async saveEthnoSurvey(taxonId: string, survey: EthnoSurvey): Promise<EthnoSurvey> {
+    return normalizeEthnoSurvey(await http.request(`/ethno-surveys/${encodeURIComponent(survey.id)}`, { method: 'PUT', body: ethnoSurveyPayload(taxonId, survey) }));
+  },
+  async deleteEthnoKnowledge(knowledgeId: string) {
+    await http.request(`/ethno-surveys/knowledge/${encodeURIComponent(knowledgeId)}`, { method: 'DELETE' });
   },
   async saveOccurrence(o: Occurrence, photos: PendingPhoto[] = []) {
     return normalizeOccurrence(await http.request(bundlePath(config.recordBundlePath, o.id, 'hallazgos'), { method: 'PUT', body: bundleForm(recordPayload(o), photos) }));

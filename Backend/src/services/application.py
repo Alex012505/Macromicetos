@@ -9,7 +9,7 @@ from pathlib import Path
 from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
 from PIL import Image, UnidentifiedImageError
-from sqlalchemy import delete, inspect, select
+from sqlalchemy import and_, delete, func, inspect, select
 
 from models.ApplicationState import ApplicationState
 from models.CurationDecision import CurationDecision
@@ -195,18 +195,19 @@ def taxon_knowledge(db, taxon_id):
         .where(EthnoTaxonKnowledge.taxon_id == taxon_id)
         .order_by(EthnoTaxonKnowledge.created_at, EthnoTaxonKnowledge.ethno_know_id)
     ).all()
-    payloads = []
-    for knowledge in rows:
-        source = db.get(EthnoSource, knowledge.ethno_source_id)
-        if source is None:
-            continue
-        uses = db.scalars(
-            select(EthnoUse)
-            .where(EthnoUse.ethno_know_id == knowledge.ethno_know_id)
-            .order_by(EthnoUse.created_at, EthnoUse.ethno_use_id)
-        ).all()
-        payloads.append(_survey_payload(source, knowledge, uses))
-    return payloads
+    return [payload for row in rows if (payload := _survey_for_knowledge(db, row)) is not None]
+
+
+def _survey_for_knowledge(db, knowledge):
+    source = db.get(EthnoSource, knowledge.ethno_source_id)
+    if source is None:
+        return None
+    uses = db.scalars(
+        select(EthnoUse)
+        .where(EthnoUse.ethno_know_id == knowledge.ethno_know_id)
+        .order_by(EthnoUse.created_at, EthnoUse.ethno_use_id)
+    ).all()
+    return _survey_payload(source, knowledge, uses)
 
 
 def _party_payload(party):
@@ -497,6 +498,101 @@ def _replace_knowledge(db, taxon_id, surveys):
     db.flush()
 
 
+# ---------------------------------------------------------------------------
+# Sección exclusiva de entrevistas socioecológicas
+# ---------------------------------------------------------------------------
+
+def ethno_surveys(db, user, taxon_id=None):
+    """Entrevistas visibles para el perfil actual.
+
+    Admin y curador ven toda la colección; un investigador solo ve las
+    entrevistas de las fichas que tiene asignadas.
+    """
+    if user.role not in ("admin", "curator", "analyst"):
+        raise HTTPException(403, "Tu perfil no permite consultar entrevistas.")
+    query = select(EthnoTaxonKnowledge)
+    if taxon_id is not None:
+        query = query.where(EthnoTaxonKnowledge.taxon_id == taxon_id)
+    if user.role == "analyst":
+        query = query.join(ApplicationState, and_(
+            ApplicationState.entity_type == "taxon_ref",
+            ApplicationState.entity_id == EthnoTaxonKnowledge.taxon_id,
+            ApplicationState.owner_id == user.user_web_id,
+        ))
+    rows = db.scalars(
+        query.order_by(EthnoTaxonKnowledge.created_at, EthnoTaxonKnowledge.ethno_know_id)
+    ).all()
+    return [payload for row in rows if (payload := _survey_for_knowledge(db, row)) is not None]
+
+
+def save_ethno_survey(db, survey, user):
+    """Crea o actualiza una entrevista para una especie concreta.
+
+    No toca las demás entrevistas del mismo taxón ni los otros taxones de la
+    misma fuente: la clave natural es (ethno_source_id, taxon_id).
+    """
+    taxon_id = survey.knowledge.taxon_id
+    if taxon_id is None:
+        raise HTTPException(422, "Selecciona la especie asociada a la entrevista.")
+    if db.get(TaxonRef, taxon_id) is None:
+        raise HTTPException(404, "La especie seleccionada no existe.")
+    require_edit(db, "taxon_ref", taxon_id, user)
+    if survey.source.consent_given is not True:
+        raise HTTPException(422, "Una entrevista requiere consentimiento otorgado.")
+    source = _upsert_ethno_source(db, survey.source)
+    row = db.scalar(select(EthnoTaxonKnowledge).where(
+        EthnoTaxonKnowledge.ethno_source_id == source.ethno_source_id,
+        EthnoTaxonKnowledge.taxon_id == taxon_id,
+    ))
+    if row is None and survey.knowledge.knowledge_id:
+        candidate = db.get(EthnoTaxonKnowledge, survey.knowledge.knowledge_id)
+        if candidate is not None and candidate.taxon_id == taxon_id \
+                and candidate.ethno_source_id == source.ethno_source_id:
+            row = candidate
+    if row is None:
+        knowledge_id = survey.knowledge.knowledge_id
+        if knowledge_id and db.get(EthnoTaxonKnowledge, knowledge_id) is not None:
+            knowledge_id = None  # ya pertenece a otro par entrevista/taxón
+        row = EthnoTaxonKnowledge(
+            ethno_know_id=knowledge_id or uuid.uuid4(),
+            ethno_source_id=source.ethno_source_id,
+            taxon_id=taxon_id,
+        )
+        db.add(row)
+    _apply_knowledge(row, survey.knowledge)
+    extras = [use.recommendations.strip() for use in survey.uses
+              if use.recommendations and use.recommendations.strip()]
+    if not row.recommendations and extras:
+        row.recommendations = "\n".join(dict.fromkeys(extras))
+    db.flush()
+    _replace_uses(db, row, survey.uses)
+    return _survey_for_knowledge(db, row)
+
+
+def delete_ethno_knowledge(db, knowledge_id, user):
+    """Elimina la entrevista de una especie y la fuente si queda huérfana."""
+    row = db.get(EthnoTaxonKnowledge, knowledge_id)
+    if row is None:
+        raise HTTPException(404, "La entrevista solicitada no existe.")
+    if row.taxon_id is not None:
+        require_edit(db, "taxon_ref", row.taxon_id, user)
+    elif user.role != "admin":
+        raise HTTPException(403, "Solo un administrador puede retirar saberes sin especie.")
+    source_id = row.ethno_source_id
+    db.execute(delete(EthnoUse).where(EthnoUse.ethno_know_id == knowledge_id))
+    db.delete(row)
+    db.flush()
+    remaining = db.scalar(
+        select(func.count()).select_from(EthnoTaxonKnowledge)
+        .where(EthnoTaxonKnowledge.ethno_source_id == source_id)
+    )
+    if not remaining:
+        source = db.get(EthnoSource, source_id)
+        if source is not None:
+            db.delete(source)
+    db.flush()
+
+
 def _upsert_party(db, data):
     given = (data.given_name or "").strip()
     family = (data.family_name or "").strip() or None
@@ -567,8 +663,11 @@ def complete(db, kind, row, user, base_url):
         data["participants"] = record_participants(db, row.occurrence_id, row.event_id) or extra.get("participants", [])
         if not sensitive:
             data["participants"] = private_fields(data["participants"])
-        if not state or "measurements" not in state.payload:
-            data["measurements"] = [as_dict(item) for item in db.scalars(select(MeasurementOrFact).where(MeasurementOrFact.event_id == row.event_id)).all()]
+        # La tabla normalizada es la fuente de verdad de las medidas ambientales.
+        data["measurements"] = [as_dict(item) for item in db.scalars(
+            select(MeasurementOrFact).where(MeasurementOrFact.event_id == row.event_id)
+            .order_by(MeasurementOrFact.measurement_type, MeasurementOrFact.measurement_id)
+        ).all()]
         data["multimedia"] = [media_data(db, photo, user, base_url) for photo in db.scalars(
             select(Multimedia).where(Multimedia.occurrence_id == row.occurrence_id).order_by(Multimedia.created_at, Multimedia.media_id)
         ).all()]
@@ -633,6 +732,34 @@ def replace_morphology(db, kind, entity_id, facts):
         db.add(MorphologyFact(morphology_id=uuid.uuid4(), **fact.model_dump()))
 
 
+def replace_measurements(db, event_id, event_date, items):
+    """Reemplaza las lecturas ambientales del evento en la tabla normalizada."""
+    seen = set()
+    for item in items:
+        if item.event_id != event_id:
+            raise HTTPException(422, "Cada medida debe pertenecer a la salida de campo actual.")
+        if item.measurement_type in seen:
+            raise HTTPException(422, "Cada variable ambiental se registra una sola vez por salida de campo.")
+        seen.add(item.measurement_type)
+    # Conserva la fecha de lectura ya registrada para la misma variable.
+    previous = {row.measurement_type: row.measurement_determined_date for row in db.scalars(
+        select(MeasurementOrFact).where(MeasurementOrFact.event_id == event_id)).all()}
+    determined = (dt.datetime.combine(event_date, dt.time(9, 0), tzinfo=dt.timezone(dt.timedelta(hours=-5)))
+                  if event_date else dt.datetime.now(dt.timezone.utc))
+    db.execute(delete(MeasurementOrFact).where(MeasurementOrFact.event_id == event_id))
+    for item in items:
+        db.add(MeasurementOrFact(
+            measurement_id=uuid.uuid4(),
+            event_id=event_id,
+            measurement_type=item.measurement_type,
+            measurement_value=item.measurement_value,
+            measurement_unit=item.measurement_unit,
+            measurement_determined_date=previous.get(item.measurement_type) or determined,
+            measurement_method=item.measurement_method,
+            measurement_remarks=item.measurement_remarks,
+        ))
+
+
 def save_taxon(db, body, user):
     taxon_id = body.taxon.taxon_id
     row = db.get(TaxonRef, taxon_id)
@@ -645,9 +772,10 @@ def save_taxon(db, body, user):
         raise HTTPException(409, "Este nombre científico ya está registrado.")
     if not body.taxon.scientific_name.strip() or not body.taxon.kingdom.strip():
         raise HTTPException(422, "Completa nombre científico y reino.")
-    for knowledge in body.knowledge:
-        if knowledge.source.consent_given is not True:
-            raise HTTPException(422, "Una entrevista requiere consentimiento otorgado.")
+    if body.knowledge is not None:
+        for knowledge in body.knowledge:
+            if knowledge.source.consent_given is not True:
+                raise HTTPException(422, "Una entrevista requiere consentimiento otorgado.")
     state, _ = ownership(db, "taxon_ref", taxon_id, user)
     values = body.taxon.model_dump(exclude={"taxon_id"})
     values["scientific_name"] = " ".join(values["scientific_name"].split())
@@ -657,12 +785,13 @@ def save_taxon(db, body, user):
     previous = as_dict(row) if row.scientific_name else None
     for key, value in values.items():
         setattr(row, key, value)
-    snapshot = body.model_dump(mode="json", exclude={"taxon", "morphology"})
+    snapshot = body.model_dump(mode="json", exclude={"taxon", "morphology", "knowledge"})
     previous_snapshot = state.payload.get("snapshot")
     # sources/knowledge/participants se normalizan; el JSON solo conserva el
     # snapshot para detectar cambios y la morfología para el respaldo.
     _replace_sources(db, taxon_id, body.sources)
-    _replace_knowledge(db, taxon_id, body.knowledge)
+    if body.knowledge is not None:
+        _replace_knowledge(db, taxon_id, body.knowledge)
     _replace_participants(db, taxon_id, body.participants)
     state.payload = {
         "snapshot": snapshot,
@@ -724,27 +853,16 @@ def save_record(db, body, user):
     values["recorded_by"] = recorded_by
     for key, value in values.items():
         setattr(row, key, value)
-    seen_measurements = set()
-    for measurement in body.measurements:
-        event_id, record_id = measurement.event_id, measurement.occurrence_id
-        if not ((event_id == event.event_id and record_id is None) or (record_id == occurrence_id and event_id is None)):
-            raise HTTPException(422, "Cada medida debe pertenecer al evento o al hallazgo actual.")
-        key = (bool(event_id), measurement.measurement_type.strip().casefold())
-        value = measurement.measurement_value
-        if not key[1] or value is None or not str(value).strip() or key in seen_measurements:
-            raise HTTPException(422, "Completa variable y valor de cada medida.")
-        seen_measurements.add(key)
     snapshot = body.model_dump(mode="json", exclude={"multimedia", "owner_id"})
     snapshot["event"]["recorded_by"] = recorded_by
     snapshot["occurrence"]["recorded_by"] = recorded_by
     changed = state.payload.get("snapshot") != snapshot
-    # Ubicación, evento, sustrato y participantes ya tienen tabla propia. El
-    # JSON solo conserva el snapshot (para detectar cambios) y las medidas
-    # libres, que no caben en ecological.measurement_or_fact (tipo enum y
-    # valor numérico) y por eso siguen aquí.
-    state.payload = {"snapshot": snapshot,
-                     "measurements": [measurement.model_dump(mode="json") for measurement in body.measurements]}
+    # Ubicación, evento, sustrato, participantes, morfología y medidas ya
+    # tienen tabla propia. El JSON solo conserva el snapshot para detectar
+    # cambios entre guardados.
+    state.payload = {"snapshot": snapshot}
     db.flush()
+    replace_measurements(db, event.event_id, event.event_date, body.measurements)
     _sync_parties(db, OccurrenceParty, OccurrenceParty.occurrence_id, occurrence_id,
                   [(person.party, person.party_role, person.is_primary)
                    for person in body.participants if person.scope != "event"])

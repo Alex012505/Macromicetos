@@ -1,5 +1,6 @@
 import type { Measurement, MorphologyFact, Participant, ScientificSource, EthnoSurvey, EthnoUse } from '../types';
 import { morphologyTypes } from '../lib/morphology.mjs';
+import { measurementTypes, measurementUnit } from '../lib/measurements.mjs';
 
 const MORPHOLOGY_DICT: Record<string, string[] | "medida"> = {
   // --- VARIABLES CUALITATIVAS (Dropdowns extraídos del CSV) ---
@@ -124,10 +125,25 @@ export function MorphologyEditor({ value, onChange }: { value: MorphologyFact[];
 
 
 export function MeasurementEditor({ value, onChange }: { value: Measurement[]; onChange: (v: Measurement[]) => void }) {
-  return <div className="repeating-fields"><p className="muted">Microclima y otras medidas: temperatura, humedad, pH o dimensiones adicionales. Indica si corresponden a la salida o al espécimen.</p>{value.map((m, i) => <fieldset className="entry-card" key={i}><legend>Medida {i + 1}</legend><Fields value={m} fields={[
-    { key: 'name', label: 'Variable', required: true, max: 40 }, { key: 'value', label: 'Valor', required: true }, { key: 'unit', label: 'Unidad', max: 24 },
-    { key: 'scope', label: 'Corresponde a', options: [['occurrence', 'Este hallazgo'], ['event', 'La salida de campo']] },
-  ]} onChange={(key, v) => onChange(value.map((r, j) => i === j ? { ...r, [key]: v } : r))} /><button type="button" className="text-button danger" onClick={() => onChange(value.filter((_, j) => j !== i))}>Quitar medida {i + 1}</button></fieldset>)}<button type="button" className="btn small" onClick={() => onChange([...value, { name: '', value: '', unit: '', scope: 'occurrence' }])}>Añadir medida ambiental</button></div>;
+  const update = (i: number, key: string, v: string) => onChange(value.map((m, j) => {
+    if (i !== j) return m;
+    // Al cambiar de variable se propone su unidad habitual.
+    return key === 'type' ? { ...m, type: v, unit: measurementUnit(v) } : { ...m, [key]: v };
+  }));
+  return <div className="repeating-fields">
+    <p className="muted">Microclima de la salida de campo: ocho variables, valor numérico y unidad obligatoria. Cada variable se registra una sola vez por evento.</p>
+    {value.map((m, i) => <fieldset className="entry-card" key={i}><legend>Medida {i + 1}</legend><Fields value={m} fields={[
+      { key: 'type', label: 'Variable ambiental', required: true, options: [['', 'Selecciona una variable'], ...measurementTypes.filter(([type]) => type === m.type || !value.some(v => v.type === type)).map(([type, label]) => [type, label])] },
+      { key: 'value', label: 'Valor', type: 'number', required: true, step: 'any' },
+      { key: 'unit', label: 'Unidad', required: true, max: 20 },
+      { key: 'method', label: 'Método o instrumento', max: 200 },
+      { key: 'remarks', label: 'Notas de la medida', type: 'textarea' },
+    ]} onChange={(key, v) => update(i, key, v)} /><p className="muted">Ámbito: salida de campo (evento).</p><button type="button" className="text-button danger" onClick={() => onChange(value.filter((_, j) => j !== i))}>Quitar medida {i + 1}</button></fieldset>)}
+    <button type="button" className="btn small" disabled={value.length >= measurementTypes.length} onClick={() => {
+      const first = measurementTypes.find(([type]) => !value.some(m => m.type === type))?.[0] || '';
+      onChange([...value, { type: first, value: '', unit: measurementUnit(first), method: '', remarks: '' }]);
+    }}>Añadir medida ambiental</button>
+  </div>;
 }
 export function ParticipantsEditor({ value, onChange, taxon = false, media = false }: { value: Participant[]; onChange: (v: Participant[]) => void; taxon?: boolean; media?: boolean }) {
   return <>{value.map((p, i) => <fieldset className="entry-card" key={p.id}><legend>Participante {i + 1}</legend><Fields value={p} fields={[

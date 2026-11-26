@@ -94,8 +94,8 @@ async function createRecord(account, number, hasTaxon) {
   await dialog.getByLabel('Código de campo', { exact: true }).fill(`PRUEBA-WEB-0${number}`);
   await dialog.getByRole('button', { name: 'Continuar', exact: true }).click();
   await dialog.getByRole('button', { name: 'Añadir medida ambiental', exact: true }).click();
-  await dialog.getByLabel('Variable', { exact: false }).fill('Temperatura ficticia');
-  await dialog.getByLabel('Valor', { exact: false }).fill('0');
+  await dialog.getByLabel('Variable ambiental', { exact: true }).selectOption('temperature');
+  await dialog.getByLabel('Valor', { exact: true }).fill('0');
   await dialog.getByLabel('Unidad', { exact: true }).fill('°C');
   await dialog.getByRole('button', { name: 'Guardar registro', exact: true }).click();
   await expect(dialog).not.toBeVisible({ timeout: 20000 });

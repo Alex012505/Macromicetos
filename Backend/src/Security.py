@@ -15,6 +15,25 @@ from settings import SECRET_KEY, TOKEN_MINUTES
 ALGORITHM = "HS256"
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+oauth2_optional = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
+
+
+class AnonymousViewer:
+    """Read-only principal for visitors who enter without an account.
+
+    It intentionally has no database row: ``complete`` and ``media_data`` only
+    need ``role`` and ``user_web_id`` to decide which fields are sensitive.
+    """
+
+    user_web_id = uuid.UUID(int=0)
+    role = "viewer"
+    email = ""
+    first_name = "Visitante"
+    last_name = None
+    is_anonymous = True
+
+
+ANONYMOUS_VIEWER = AnonymousViewer()
 
 
 def hash_password(password: str) -> str:
@@ -33,7 +52,7 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> UserWeb:
+def _user_from_token(token: str, db: Session) -> UserWeb:
     invalid = HTTPException(401, "La sesión no es válida o ha vencido.", headers={"WWW-Authenticate": "Bearer"})
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], options={"require_exp": True, "require_sub": True})
@@ -44,6 +63,21 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if user is None or payload.get("role") != user.role:
         raise invalid
     return user
+
+
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> UserWeb:
+    return _user_from_token(token, db)
+
+
+def get_optional_user(token: str | None = Depends(oauth2_optional), db: Session = Depends(get_db)):
+    """Return the authenticated account, or an anonymous read-only visitor.
+
+    A malformed or expired token is rejected instead of being silently
+    downgraded, so a stale browser session cannot masquerade as a visitor.
+    """
+    if not token:
+        return ANONYMOUS_VIEWER
+    return _user_from_token(token, db)
 
 
 def require_roles(*roles):
@@ -57,6 +91,8 @@ def require_roles(*roles):
 require_writer = require_roles("analyst", "admin")
 require_curator = require_roles("curator", "admin")
 require_admin = require_roles("admin")
+# Socioecological interviews: analysts (own taxa), curators and admins may read.
+require_researcher = require_roles("analyst", "curator", "admin")
 
 
 def user_profile(user: UserWeb) -> dict:

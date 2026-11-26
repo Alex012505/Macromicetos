@@ -30,7 +30,7 @@ def create_measurement(
     if not db.get(Event, body.event_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="El evento indicado no existe")
 
-    # La BD impone UNIQUE (event_id, measurement_type): una lectura por variable.
+    # Una lectura por variable y evento; la tabla no impone UNIQUE, la app sí.
     existe = db.scalar(
         select(MeasurementOrFact).where(
             MeasurementOrFact.event_id == body.event_id,

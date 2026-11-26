@@ -2,6 +2,7 @@ import type { Occurrence, Taxon } from '../types';
 import { csvText, occurrenceRows, speciesRows, morphologyRows } from './export-data.mjs';
 import { config } from './api';
 import { morphologyLabel } from './morphology.mjs';
+import { measurementLabel } from './measurements.mjs';
 import { isPdfImageUrl } from './pdf-images.mjs';
 import { referencePhotoCredit } from './photo-credits.mjs';
 import { statusNames } from '../types';
@@ -86,7 +87,7 @@ export async function createSpeciesPdf(t: Taxon, occurrences: Occurrence[]) {
     for (const [label, value] of [['ID', o.id], ['Estado', statusNames[o.status]], ['Fecha y hora del hallazgo', o.occurrenceDate], ['Tipo de evento', o.eventType], ['Tipo de registro', o.basisOfRecord], ['ID externo', o.externalOccurrenceId], ['País', o.country], ['Departamento', o.department], ['Municipio', o.municipality], ['Hábitat', o.habitat], ['Sustrato', o.substrate], ['Registrado por', o.recordedBy], ['Identificado por', o.author], ['Fecha de identificación', o.date], ['Elevación (m)', o.elevationM], ['Incertidumbre (m)', o.uncertaintyM], ['Código de campo', o.fieldNumber], ['Protocolo', o.samplingProtocol], ['Esfuerzo', o.samplingEffort], ['Notas del sitio', o.locationRemarks], ['Notas de la salida', o.eventRemarks], ['Notas del hallazgo', o.remarks]]) field(String(label), value);
     if (o.lat != null && o.lng != null) field('Coordenadas WGS84', `${o.lat}, ${o.lng}`);
     morphology(o.morphology);
-    for (const m of o.measurements) field(`${m.name} (${m.scope === 'event' ? 'evento' : 'hallazgo'})`, `${m.value} ${m.unit || ''}`);
+    for (const m of o.measurements) field(`Microclima: ${measurementLabel(m.type)}`, `${m.value} ${m.unit || ''}${m.method ? ` · ${m.method}` : ''}`);
   }
   heading('Fuentes bibliográficas'); if (!t.sources?.length) text('Sin referencias registradas.');
   for (const s of t.sources || []) text([s.authors, s.year, s.title, s.doi ? `DOI: ${s.doi}` : ''].filter(Boolean).join(' · '));

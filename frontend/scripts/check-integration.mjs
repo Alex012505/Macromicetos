@@ -61,7 +61,7 @@ try {
     lat: 0, lng: 0, uncertaintyM: 0, basisOfRecord: 'HumanObservation', substrate: 'Madera muerta', habitat: 'Bosque de galería', remarks: 'Prueba completa', recordedBy: analyst.name,
     eventType: 'Observation', eventDate: '2026-10-21', occurrenceDate: '2026-10-21T12:00:00-05:00', samplingProtocol: 'OpportunisticSearch',
     status: 'pending', images: [], morphology: [{ type: 'diametro_sombrero', value: '5–8', unit: 'cm' }],
-    measurements: [{ name: 'Temperatura', value: '0', unit: '°C', scope: 'event' }], participants: [] };
+    measurements: [{ type: 'temperature', value: '0', unit: '°C', method: 'Estación portátil' }], participants: [] };
   const image = new File([await readFile(join(frontend, 'public/images/pleurotus.jpg'))], 'photo.jpg', { type: 'image/jpeg' });
   const photo = { id: randomUUID(), file: image, metadata: { url: '', photoType: 'habitus', photographer: 'Analyst', license: 'CC BY 4.0' } };
   const saved = await api.saveOccurrence(record, [photo]);

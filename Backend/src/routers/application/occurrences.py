@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from Security import get_current_user, require_writer
+from Security import get_optional_user, require_writer
 from database.Base import get_db
 from models.Occurrence import Occurrence
 from models.UserWeb import UserWeb
@@ -17,7 +17,7 @@ router = APIRouter(tags=["occurrences"])
 
 
 @router.get("/occurrences")
-def occurrences(request: Request, db: Session = Depends(get_db), user: UserWeb = Depends(get_current_user)):
+def occurrences(request: Request, db: Session = Depends(get_db), user=Depends(get_optional_user)):
     return [complete(db, "occurrence", row, user, str(request.base_url)) for row in db.scalars(
         select(Occurrence).order_by(Occurrence.created_at.desc(), Occurrence.occurrence_id)
     ).all()]
@@ -25,7 +25,7 @@ def occurrences(request: Request, db: Session = Depends(get_db), user: UserWeb =
 
 @router.get("/occurrences/{occurrence_id}")
 def occurrence(occurrence_id: uuid.UUID, request: Request,
-               db: Session = Depends(get_db), user: UserWeb = Depends(get_current_user)):
+               db: Session = Depends(get_db), user=Depends(get_optional_user)):
     return complete(db, "occurrence", find(db, Occurrence, occurrence_id), user, str(request.base_url))
 
 

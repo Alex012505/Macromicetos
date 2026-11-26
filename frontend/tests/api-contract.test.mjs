@@ -12,10 +12,11 @@ test('ORM names, bibliography, knowledge, false boolean values, and IDs survive 
   assert.equal(taxon.knowledge[0].consentGiven, false); assert.equal(taxon.knowledge[0].knowsFungi, false);
 });
 test('full occurrence preserves geography, morphology, photo credits and separate observation/identification dates', () => {
-  const o = normalizeOccurrence({ occurrence: { occurrence_id: 'o', taxon_id: null, recorded_by: 'Recorder', date_identified: null }, event: { event_id: 'e', recorded_by: 'Recorder', event_date: '2026-10-17', location: { location_id: 'l', decimal_latitude: '0', decimal_longitude: '-73', coordinate_uncertainty_m: '0', municipality: 'Sitio', elevation_m: '500' } }, morphology: [{ measurement_type: 'color_pie', measurement_value: 'Blanco' }], multimedia: [{ media_id: 'm', source_url: 'https://example.org/photo.jpg', photo_type: 'stipe', qc_passed: false, credits: [{ party: { party_id: 'p', given_name: 'Ana', display_name: 'Ana' }, credit_role: 'photographer', is_primary: true }] }] });
+  const o = normalizeOccurrence({ occurrence: { occurrence_id: 'o', taxon_id: null, recorded_by: 'Recorder', date_identified: null }, event: { event_id: 'e', recorded_by: 'Recorder', event_date: '2026-10-17', location: { location_id: 'l', decimal_latitude: '0', decimal_longitude: '-73', coordinate_uncertainty_m: '0', municipality: 'Sitio', elevation_m: '500' } }, morphology: [{ measurement_type: 'color_pie', measurement_value: 'Blanco' }], measurements: [{ measurement_type: 'temperature', measurement_value: 24.5, measurement_unit: '°C', measurement_method: 'Estación' }], multimedia: [{ media_id: 'm', source_url: 'https://example.org/photo.jpg', photo_type: 'stipe', qc_passed: false, credits: [{ party: { party_id: 'p', given_name: 'Ana', display_name: 'Ana' }, credit_role: 'photographer', is_primary: true }] }] });
   assert.equal(o.lat, 0); assert.equal(o.uncertaintyM, 0); assert.equal(o.elevationM, 500);
   assert.equal(o.author, ''); assert.equal(o.date, ''); assert.equal(o.eventDate, '2026-10-17');
   assert.equal(o.morphology[0].type, 'color_pie'); assert.equal(o.photos[0].qcPassed, false);
+  assert.deepEqual(o.measurements, [{ type: 'temperature', value: '24.5', unit: '°C', method: 'Estación', remarks: '' }]);
   assert.equal(o.photos[0].credits[0].displayName, 'Ana'); assert.equal(o.photos[0].credits[0].role, 'photographer');
 });
 test('canonical roles survive normalization and unknown profiles default to viewer', () => {
@@ -28,7 +29,8 @@ test('canonical roles survive normalization and unknown profiles default to view
 });
 test('missing full-record server contract fails before issuing a basic request that would drop fields', async () => {
   await assert.rejects(api.saveOccurrence({ id: 'o' }), /guardado completo/);
-  for (const field of ['morphology', 'sources', 'knowledge', 'participants']) {
+  // Interviews are a separate section, so they no longer gate taxon creation.
+  for (const field of ['morphology', 'sources', 'participants']) {
     await assert.rejects(api.createTaxon({ id: 't', [field]: [{}] }), /guardado completo/);
   }
 });

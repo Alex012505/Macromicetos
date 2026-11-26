@@ -20,6 +20,7 @@ from database.Base import SessionLocal, engine
 from models.ApplicationState import ApplicationState
 from models.CurationDecision import CurationDecision
 from models.Multimedia import Multimedia
+from models.MeasurementOrFact import MeasurementOrFact
 from models.Occurrence import Occurrence
 from models.UserWeb import UserWeb
 from Security import hash_password
@@ -114,8 +115,9 @@ def verify():
             decision = db.scalar(select(CurationDecision).where(CurationDecision.entity_type == "occurrence", CurationDecision.entity_id == row.occurrence_id)
                                  .order_by(CurationDecision.created_at.desc()).limit(1))
             assert decision and decision.new_status == ("verified" if external_id == "PRUEBA-WEB-01" else "submitted"), f"Estado de curaduría inesperado para {external_id}."
-            assert state.payload["measurements"][0]["measurement_value"] == "0"
-            assert state.payload["location"]["coordinate_uncertainty_m"] == 0
+            measured = db.scalars(select(MeasurementOrFact).where(MeasurementOrFact.event_id == row.event_id)).all()
+            assert len(measured) == 1 and measured[0].measurement_value == 0
+            assert state.payload["snapshot"]["location"]["coordinate_uncertainty_m"] == 0
             result.append({"id": str(row.occurrence_id), "externalId": external_id, "photos": len(photos), "status": decision.new_status})
         data["records"] = result
         save(data)

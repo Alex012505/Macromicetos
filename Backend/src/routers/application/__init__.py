@@ -1,12 +1,16 @@
-"""The concrete API contract consumed by the React application."""
-from fastapi import APIRouter, Depends
+"""The concrete API contract consumed by the React application.
 
-from Security import get_current_user
-from routers.application import curation, multimedia, occurrences, taxa, users
+Authentication is declared per endpoint: catalogue reads accept anonymous
+visitors, while every write keeps an explicit role or ownership dependency.
+"""
+from fastapi import APIRouter
 
-router = APIRouter(dependencies=[Depends(get_current_user)])
+from routers.application import curation, ethno, multimedia, occurrences, taxa, users
+
+router = APIRouter()
 router.include_router(users.router)
 router.include_router(taxa.router)
 router.include_router(occurrences.router)
 router.include_router(multimedia.router)
 router.include_router(curation.router)
+router.include_router(ethno.router)

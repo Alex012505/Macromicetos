@@ -1,6 +1,6 @@
 export type Role = 'viewer' | 'analyst' | 'curator' | 'admin';
 export type Status = 'verified' | 'pending' | 'rejected' | 'unknown';
-export interface User { id: string; name: string; email: string; role: Role; expiresAt?: number }
+export interface User { id: string; name: string; email: string; role: Role; expiresAt?: number; isGuest?: boolean }
 export interface Taxon {
   ownerId?: string;
   id: string; scientificName: string; commonName: string; kingdom: string;
@@ -13,7 +13,7 @@ export interface Taxon {
 export interface MorphologyFact {
   type: string; value: string; unit?: string; determinedDate?: string; remarks?: string;
 }
-export interface Measurement { name: string; value: string; unit?: string; scope?: 'event' | 'occurrence' }
+export interface Measurement { type: string; value: string; unit: string; method?: string; remarks?: string }
 export interface PhotoMetadata {
   id?: string; url: string; fileName?: string; photoType: string; photographer?: string;
   license?: string; rightsHolder?: string; mimeFormat?: string; sourceUrl?: string;
@@ -30,6 +30,7 @@ export interface ScientificSource { id: string; sourceType: string; title?: stri
 export interface EthnoUse {
   id: string; useCategory: string; importance?: string; preparationMethod?: string;
   ailment?: string; dosage?: string; contraindications?: string; recommendations?: string;
+  usesFungi?: boolean;
 }
 export interface EthnoSurvey {
   knowledgeId?: string;
@@ -39,6 +40,7 @@ export interface EthnoSurvey {
   knowsFungi: boolean; localName?: string; learningSource?: string; recognitionCues?: string;
   foundInPlaces?: string; seasonality?: string; months?: string; safetyPractices?: string;
   mythsStories?: string; culturalIdentity?: string; recommendations?: string; uses: EthnoUse[];
+  taxonId?: string;
 }
 export interface Occurrence {
   ownerId?: string;

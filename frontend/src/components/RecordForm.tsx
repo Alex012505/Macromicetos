@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import type { Occurrence, PendingPhoto, Taxon, User } from '../types';
 import { config } from '../lib/api';
 import { validateCoordinates, validateMorphology } from '../lib/morphology.mjs';
+import { validateMeasurements } from '../lib/measurements.mjs';
 import { Modal, Notice, Photo } from './UI';
 import TaxonForm from './TaxonForm';
 import { searchTaxa } from '../lib/taxon-search.mjs';
@@ -50,8 +51,7 @@ export default function RecordForm({ taxa, initial, user, users, onSave, onCreat
       if (photoBusy) throw new Error('Espera a que termine la revisión de fotografías.');
       if (step < 3) { changeStep(step + 1); return; }
       validateMorphology(morphology);
-      const seen = new Set();
-      for (const m of measurements) { const key = `${m.scope || 'occurrence'}:${m.name.trim().toLowerCase()}`; if (!m.name.trim() || !m.value.trim()) throw new Error('Completa la variable y el valor de cada medida.'); if (seen.has(key)) throw new Error('No repitas una variable en el mismo ámbito de medición.'); seen.add(key); }
+      validateMeasurements(measurements);
       const coords = validateCoordinates(v.lat, v.lng);
       setBusy(true);
       await onSave({ ...initial, ...v, ...coords, id: recordId, eventId, locationId,
@@ -79,7 +79,7 @@ export default function RecordForm({ taxa, initial, user, users, onSave, onCreat
       { key: 'fieldNumber', label: 'Código de campo', max: 32 }, { key: 'samplingProtocol', label: 'Protocolo', options: [['', 'Sin especificar'], ['OpportunisticSearch', 'Búsqueda oportunista'], ['LinearTransect', 'Transecto lineal'], ['FixedPlot', 'Parcela fija']] },
       { key: 'samplingEffort', label: 'Esfuerzo de muestreo', max: 32 }, { key: 'eventRemarks', label: 'Notas de la salida', type: 'textarea' },
     ]} /><h3>Participantes y créditos</h3><ParticipantsEditor value={participants} onChange={setParticipants} /></fieldset>
-    <fieldset hidden={step !== 3} disabled={busy || step !== 3} className="form-section"><legend className="sr-only">Morfología y medidas</legend><h3>Morfología de este espécimen</h3><MorphologyEditor value={morphology} onChange={setMorphology} /><h3 className="form-subheading">Microclima y otras medidas</h3><MeasurementEditor value={measurements} onChange={setMeasurements} /><div className="record-summary"><strong>Antes de guardar</strong><p>Investigador responsable: {responsible?.name}</p>{user.role === 'admin' && responsibleId !== user.id && <p>Registras este hallazgo a nombre de otra cuenta investigadora.</p>}<p><em>{taxa.find(t => t.id === v.taxonId)?.scientificName || 'Sin identificar'}</em> · {v.locality || 'Sin localidad'} · {v.eventDate}</p><p>{(initial?.images.length || 0) + photos.length} fotografías · {morphology.length} rasgos · {measurements.length} medidas</p></div>{config.demo && <Notice>Se guardará en este navegador como registro en revisión.</Notice>}</fieldset>
+    <fieldset hidden={step !== 3} disabled={busy || step !== 3} className="form-section"><legend className="sr-only">Morfología y medidas</legend><h3>Morfología de este espécimen</h3><MorphologyEditor value={morphology} onChange={setMorphology} /><h3 className="form-subheading">Microclima de la salida de campo</h3><MeasurementEditor value={measurements} onChange={setMeasurements} /><div className="record-summary"><strong>Antes de guardar</strong><p>Investigador responsable: {responsible?.name}</p>{user.role === 'admin' && responsibleId !== user.id && <p>Registras este hallazgo a nombre de otra cuenta investigadora.</p>}<p><em>{taxa.find(t => t.id === v.taxonId)?.scientificName || 'Sin identificar'}</em> · {v.locality || 'Sin localidad'} · {v.eventDate}</p><p>{(initial?.images.length || 0) + photos.length} fotografías · {morphology.length} rasgos · {measurements.length} medidas</p></div>{config.demo && <Notice>Se guardará en este navegador como registro en revisión.</Notice>}</fieldset>
     {error && <Notice error>{error}</Notice>}<div className="form-actions"><button className="btn" type="button" disabled={busy} onClick={step === 0 ? onCancel : () => changeStep(step - 1)}>{step === 0 ? 'Cancelar' : 'Anterior'}</button><button className="btn primary" disabled={busy || photoBusy}>{busy ? 'Guardando…' : step < 3 ? 'Continuar' : initial ? 'Guardar cambios' : 'Guardar registro'}</button></div>
   </form>{creatingTaxon && <Modal title="Añadir especie nueva al catálogo" wide onClose={() => { if (!taxonBusy) setCreatingTaxon(false); }}><TaxonForm existing={taxa} ownerId={user.id} onCancel={() => setCreatingTaxon(false)} onSave={async taxon => {
     setTaxonBusy(true);

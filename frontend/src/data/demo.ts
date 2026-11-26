@@ -42,7 +42,8 @@ export const demoOccurrences: Occurrence[] = Array.from({ length: 12 }, (_, i) =
     remarks: 'Observación de demostración. Las coordenadas y los datos de campo son ficticios.',
     status: i === 2 || i === 5 || i === 8 ? 'pending' : i === 10 ? 'rejected' : 'verified',
     images: taxon.image ? [taxon.image] : [],
-    measurements: [{ name: 'Diámetro del sombrero', value: '4–7', unit: 'cm' }],
+    morphology: [{ type: 'diametro_sombrero', value: '4–7', unit: 'cm' }],
+    measurements: [{ type: 'temperature', value: '24.5', unit: '°C' }],
   };
 });
 export const demoUsers = [
